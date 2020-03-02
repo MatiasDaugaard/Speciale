@@ -1,0 +1,17 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Speciale", "Speciale\Speciale.fsproj", "{67BA1794-A195-4800-883F-794357E12875}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|anycpu = Debug|anycpu
+		Release|anycpu = Release|anycpu
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{67BA1794-A195-4800-883F-794357E12875}.Debug|anycpu.ActiveCfg = Debug|anycpu
+		{67BA1794-A195-4800-883F-794357E12875}.Debug|anycpu.Build.0 = Debug|anycpu
+		{67BA1794-A195-4800-883F-794357E12875}.Release|anycpu.ActiveCfg = Release|anycpu
+		{67BA1794-A195-4800-883F-794357E12875}.Release|anycpu.Build.0 = Release|anycpu
+	EndGlobalSection
+EndGlobal
