@@ -33,6 +33,8 @@ let mutable RWGRight:RailwayGraph = Map.empty
 let mutable RWGLeft:RailwayGraph = Map.empty
 let mutable Goal:(Train * Location) list = []
 
+let mutable Paths:(Map<Train,Set<Location>>) = Map.empty
+
 let mutable DistanceMapRight:Map<Location*Location,int> = Map.empty
 let mutable DistanceMapLeft:Map<Location*Location,int> = Map.empty
 
@@ -136,11 +138,14 @@ let ReachableLocations (t:Train) (d:Direction) (sm:SignalMap) (tm:TrainMap) (rm:
 
 
 // Checks if any trains can currently reach each other returns true if not
+// TODO : Keep on path, and other stuff from the paper to minimize the number of states to check
 let IsSafeState s = 
     match s with
     | S(_,sm,tm,rm,_) -> List.forall (fun (t,d) -> let rl = ReachableLocations t d sm tm rm
                                                    let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
                                                    Set.intersect rl tloc = Set.empty) Trains
+                                                   //TODO : Stuff from the paper, to minimize the number of states to check
+                                                   //&& Set.difference rl (Map.find t Paths) = Set.empty) Trains
     | _ -> failwith "Failed in IsSafeState function"  
 
 
@@ -153,12 +158,16 @@ let rec GetGoal (t:Train) (tl)=
 
 // Calculates the total distance for the trains current position to their goal
 let CalculateHeuristic (tm:TrainMap) = 
-    List.fold (fun s (t,d) -> let l = Map.find t tm
-                              let g = GetGoal t Goal
-                              let dm = match d with
-                                       | L -> DistanceMapLeft
-                                       | R -> DistanceMapRight
-                              s + Map.find (l,g) dm) 0 Trains
+    let a = List.fold (fun s (t,d) -> let l = Map.find t tm
+                                      let g = GetGoal t Goal
+                                      let dm = match d with
+                                               | L -> DistanceMapLeft
+                                               | R -> DistanceMapRight
+                                      // TODO : Remove if just there cause code for Paths is missing           
+                                      if Map.containsKey (l,g) dm then s + Map.find (l,g) dm else s + 100
+                                      ) 0 Trains
+    //Console.WriteLine(sprintf "Explored states : %A" (a)) 
+    a
                               
 
 // Datastructure used to keep track of visited and non visited states
@@ -170,7 +179,7 @@ let mutable exploredStates:Set<int> = Set.empty
 // Check if train has free route to other train if so do not add route
 let AddNewState s t = 
     match s with
-    | S(_,sm,tm,rm,_) -> match t with
+    | S(a,sm,tm,rm,_) -> match t with
                          | Conductor 
                          | Controller when (IsSafeState s) -> let h = hash(sm,tm,rm)
                                                               if not (Set.contains h exploredStates)
@@ -178,7 +187,7 @@ let AddNewState s t =
                                                               unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
                                                               exploredStates <- Set.add h exploredStates
                          | _ -> ()
-
+                         //Console.WriteLine(sprintf "Explored states : %A" (a)) 
     | _ -> failwith "AddNewState"
 
 
@@ -193,12 +202,12 @@ let rec ControllerTurn n =
            | true  ->  List.rev (ToControlProgram s)
            | _ ->      match s with
                        | S(_,sm,tm,rm,_) -> Map.iter (fun k v -> let nSm = (Map.add k (not v) sm)
-                                                                 let h = CalculateHeuristic  tm
-                                                                 let nS = S(h,nSm,tm,rm,s)
+                                                                 let h = CalculateHeuristic tm
+                                                                 let nS = S(h+n,nSm,tm,rm,s)
                                                                  AddNewState nS Controller) sm
                                             Map.iter (fun k v -> let nRm = SwitchRail k rm
                                                                  let h = CalculateHeuristic tm
-                                                                 let nS = S(h,sm,tm,nRm,s)
+                                                                 let nS = S(h+n,sm,tm,nRm,s)
                                                                  AddNewState nS Controller) rm
                                             ConductorTurn n
                        | _ -> failwith "Not a state ControllerTurn function"
@@ -214,7 +223,7 @@ let rec ControllerTurn n =
            | S(_,sm,tm,rm,_) -> List.iter (fun (t,d) -> let l = Map.find t tm
                                                         List.iter (fun x -> let nTm = Map.add t x tm
                                                                             let h = CalculateHeuristic nTm
-                                                                            let nS = S(h,sm,nTm,rm,s)
+                                                                            let nS = S(h+n,sm,nTm,rm,s)
                                                                             AddNewState nS Conductor) (NextPosition l d sm rm)) Trains
                                 ControllerTurn (n+1)
            | _ -> failwith "Not a state"
@@ -231,16 +240,25 @@ let rec Solve rn =
 
 
 //type RailwayNetwork = Location list * Rail list * SplitRail list * Signal list * (Train*Location*Location*Direction) list
-
+(*
 let locs = [1;2;3;4;5;6]
 let rails = [(1,2);(5,6)]
 let srails = [(2,3,4,R);(5,3,4,L)]
 let sigs = [(1,R);(6,L)]
 let trains = [("A",1,6,R);("B",6,1,L)]
+*)
+let locs = [1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22]
+let rails = [(1,2);(3,4);(5,6);(7,8);(9,10);(11,12);(13,14);(17,18);(19,20);(21,22)]
+let srails = [(2,3,9,R);(5,4,8,L);(11,10,16,L);(12,7,13,R);(18,15,19,R);(21,14,20,L)]
+let sigs = [(1,L);(2,R);(3,L);(4,R);(5,L);(6,R);(11,L);(12,R);(17,L);(18,R);(19,L);(20,R);(21,L);(22,R)]
+let trains = [("t4",1,6,R);("t5",6,1,L);("t1",17,22,R);("t3",19,17,L);("t2",22,19,L)]
 
 let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
+
+(*
 let result = (Solve rn)
 Console.WriteLine(sprintf "%A" (result))
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 Console.WriteLine(sprintf "Explored states : %A" (Set.count exploredStates))
+*)
