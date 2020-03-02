@@ -159,6 +159,7 @@ let CalculateHeuristic (tm:TrainMap) =
                                        | L -> DistanceMapLeft
                                        | R -> DistanceMapRight
                               s + Map.find (l,g) dm) 0 Trains
+                              
 
 // Datastructure used to keep track of visited and non visited states
 let mutable unexploredStatesPlayer:IPriorityQueue<State> = PriorityQueue.empty false
@@ -177,7 +178,7 @@ let AddNewState s t =
                                                               unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
                                                               exploredStates <- Set.add h exploredStates
                          | _ -> ()
-                         //Console.WriteLine(sprintf "Explored states : %A" (Set.count exploredStates))
+
     | _ -> failwith "AddNewState"
 
 
@@ -231,14 +232,15 @@ let rec Solve rn =
 
 //type RailwayNetwork = Location list * Rail list * SplitRail list * Signal list * (Train*Location*Location*Direction) list
 
-let locs = [1;2;3;4;5]
-let rails = [(1,2);(2,3)]
-let srails = [(3,4,5,R)]
-let sigs = [(1,R)]
-let trains = ["A",1,5,R]
+let locs = [1;2;3;4;5;6]
+let rails = [(1,2);(5,6)]
+let srails = [(2,3,4,R);(5,3,4,L)]
+let sigs = [(1,R);(6,L)]
+let trains = [("A",1,6,R);("B",6,1,L)]
 
 let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
 let result = (Solve rn)
 Console.WriteLine(sprintf "%A" (result))
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
+Console.WriteLine(sprintf "Explored states : %A" (Set.count exploredStates))
