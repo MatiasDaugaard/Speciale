@@ -58,6 +58,24 @@ let rec CreateDistanceMapLoc (loc:Location) (d:Direction) (currentLocations:Set<
 
 let CreateDistanceMap ll d = List.fold (fun s v -> CreateDistanceMapLoc v d (set [v]) (set [v]) 1 (Map.add (v,v) 0 s)) Map.empty ll
 
+let FindPaths (tl:(Train*Location) list) =
+    let rec Path d s =
+        let rwg = match d with
+                  | L -> RWGLeft
+                  | _ -> RWGRight
+        let x = Set.fold (fun st v -> Set.union (Set.ofList (Map.find v rwg)) st) s s
+        match x = s with
+        | true -> x
+        | _ -> Path d x
+
+    Paths <- List.fold (fun s (t,d) -> let sl = snd (List.find (fun (x,_) -> x = t) tl)
+                                       let gl = snd (List.find (fun (x,_) -> x = t) Goal)
+                                       let paths1 = Path d (set [sl])
+                                       let a = if d = L then R else L
+                                       let paths2 = Path a (set [gl])
+                                       let paths = Set.intersect paths1 paths2
+                                       Map.add t paths s) Map.empty Trains
+
 // InitiateState creates the initial state given a railway network, and sets static variables
 // Type : RailwayNetwork -> State
 let InitiateState (ll,rl,srl,sl,tl) = 
@@ -78,6 +96,7 @@ let InitiateState (ll,rl,srl,sl,tl) =
     Goal <- List.rev (List.fold (fun s (t,_,l,_) -> (t,l)::s) [] tl)
     DistanceMapLeft <- CreateDistanceMap ll L
     DistanceMapRight <- CreateDistanceMap ll R
+    FindPaths (Map.toList tm)
     S(0,sm,tm,rm,N)
     
 
@@ -137,15 +156,24 @@ let ReachableLocations (t:Train) (d:Direction) (sm:SignalMap) (tm:TrainMap) (rm:
     Locations (Set.ofList (NextPosition l d sm rm))
 
 
-// Checks if any trains can currently reach each other returns true if not
-// TODO : Keep on path, and other stuff from the paper to minimize the number of states to check
-let IsSafeState s = 
+let getStuff s =
     match s with
-    | S(_,sm,tm,rm,_) -> List.forall (fun (t,d) -> let rl = ReachableLocations t d sm tm rm
-                                                   let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
-                                                   Set.intersect rl tloc = Set.empty) Trains
-                                                   //TODO : Stuff from the paper, to minimize the number of states to check
-                                                   //&& Set.difference rl (Map.find t Paths) = Set.empty) Trains
+    | S(_,sm,tm,rm,_) -> (sm,tm,rm)
+    | _ -> failwith "NO WHY?"
+
+// Checks if any trains can currently reach each other returns true if not
+let IsSafeState s = 
+    match s with                       
+    | S(_,sm,tm,rm,ps) -> let (psm,_,prm) = getStuff ps
+                          let c = Map.fold (fun s (l,d) v -> if Map.find (l,d) psm <> v then Set.add l s else s) Set.empty sm
+                          let x = Map.fold (fun s (l1,l2) v -> if Map.find (l1,l2) prm <> v then Set.add l1 (Set.add l2 s) else s) (c) rm
+                          Map.exists (fun k v -> Set.contains v x) tm &&
+                          List.forall (fun (t,d) -> let rl = ReachableLocations t d sm tm rm
+                                                    let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
+                                                    //Should not be able to reach another train
+                                                    Set.intersect rl tloc = Set.empty &&
+                                                    // Should not be able to reach location not on path
+                                                    Set.difference rl (Map.find t Paths) = Set.empty) Trains
     | _ -> failwith "Failed in IsSafeState function"  
 
 
@@ -158,21 +186,21 @@ let rec GetGoal (t:Train) (tl)=
 
 // Calculates the total distance for the trains current position to their goal
 let CalculateHeuristic (tm:TrainMap) = 
-    let a = List.fold (fun s (t,d) -> let l = Map.find t tm
-                                      let g = GetGoal t Goal
-                                      let dm = match d with
-                                               | L -> DistanceMapLeft
-                                               | R -> DistanceMapRight
-                                      // TODO : Remove if just there cause code for Paths is missing           
-                                      if Map.containsKey (l,g) dm then s + Map.find (l,g) dm else s + 100
-                                      ) 0 Trains
-    //Console.WriteLine(sprintf "Explored states : %A" (a)) 
-    a
+    List.fold (fun s (t,d) -> let l = Map.find t tm
+                              let g = GetGoal t Goal
+                              if l = g then s else
+                              let dm = match d with
+                                       | L -> DistanceMapLeft
+                                       | R -> DistanceMapRight
+                              // TODO : Remove if just there cause code for Paths is missing           
+                              if Map.containsKey (l,g) dm then s + Map.find (l,g) dm else s + 100
+                              ) 0 Trains
                               
 
 // Datastructure used to keep track of visited and non visited states
 let mutable unexploredStatesPlayer:IPriorityQueue<State> = PriorityQueue.empty false
 let mutable unexploredStatesConductor:IPriorityQueue<State> = PriorityQueue.empty false
+//Maybe generatedStates is a better name
 let mutable exploredStates:Set<int> = Set.empty
 
 // Add state to the queues
@@ -180,22 +208,26 @@ let mutable exploredStates:Set<int> = Set.empty
 let AddNewState s t = 
     match s with
     | S(a,sm,tm,rm,_) -> match t with
-                         | Conductor 
+                         | Conductor ->                       let h = hash(sm,tm,rm)
+                                                              if not (Set.contains h exploredStates)
+                                                              then unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
+                                                              unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
+                                                              exploredStates <- Set.add h exploredStates
                          | Controller when (IsSafeState s) -> let h = hash(sm,tm,rm)
                                                               if not (Set.contains h exploredStates)
                                                               then unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
                                                               unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
                                                               exploredStates <- Set.add h exploredStates
                          | _ -> ()
-                         //Console.WriteLine(sprintf "Explored states : %A" (a)) 
+
     | _ -> failwith "AddNewState"
 
 
 // The game
-let rec ControllerTurn n =
+let rec ControllerTurn _ =
     match PriorityQueue.isEmpty unexploredStatesPlayer with
     | true when PriorityQueue.isEmpty unexploredStatesConductor -> failwith "No more states to explore"
-    | true -> ConductorTurn n
+    | true -> ConductorTurn 0
     | _ -> let (s,p) = PriorityQueue.pop unexploredStatesPlayer
            unexploredStatesPlayer <- p
            match IsSolved s with
@@ -203,62 +235,73 @@ let rec ControllerTurn n =
            | _ ->      match s with
                        | S(_,sm,tm,rm,_) -> Map.iter (fun k v -> let nSm = (Map.add k (not v) sm)
                                                                  let h = CalculateHeuristic tm
-                                                                 let nS = S(h+n,nSm,tm,rm,s)
+                                                                 let nS = S(h,nSm,tm,rm,s)
                                                                  AddNewState nS Controller) sm
                                             Map.iter (fun k v -> let nRm = SwitchRail k rm
                                                                  let h = CalculateHeuristic tm
-                                                                 let nS = S(h+n,sm,tm,nRm,s)
+                                                                 let nS = S(h,sm,tm,nRm,s)
                                                                  AddNewState nS Controller) rm
-                                            ConductorTurn n
+                                            ConductorTurn 0
                        | _ -> failwith "Not a state ControllerTurn function"
 
-   and ConductorTurn n = 
-    //Maybe not fail, but just next turn it
+   and ConductorTurn _ = 
     match PriorityQueue.isEmpty unexploredStatesConductor with
     | true when PriorityQueue.isEmpty unexploredStatesPlayer -> failwith "No more states to explore"
-    | true -> ControllerTurn n
+    | true -> ControllerTurn 0
     | _ -> let (s,p) = PriorityQueue.pop unexploredStatesConductor
            unexploredStatesConductor <- p
            match s with
            | S(_,sm,tm,rm,_) -> List.iter (fun (t,d) -> let l = Map.find t tm
                                                         List.iter (fun x -> let nTm = Map.add t x tm
                                                                             let h = CalculateHeuristic nTm
-                                                                            let nS = S(h+n,sm,nTm,rm,s)
+                                                                            let nS = S(h,sm,nTm,rm,s)
                                                                             AddNewState nS Conductor) (NextPosition l d sm rm)) Trains
-                                ControllerTurn (n+1)
+                                ControllerTurn 0
            | _ -> failwith "Not a state"
 
 
 let rec Solve rn = 
     let s = InitiateState rn
-    match IsSafeState s with
-    | true -> unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
-              //priorityQueueConductor <- PriorityQueue.insert s priorityQueueConductor
-              ControllerTurn 0
-    | _ -> failwith "Initial state dangerous"
+    unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
+    //unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
+    ControllerTurn 0
+
 
 
 
 //type RailwayNetwork = Location list * Rail list * SplitRail list * Signal list * (Train*Location*Location*Direction) list
 (*
+//Simple test
 let locs = [1;2;3;4;5;6]
 let rails = [(1,2);(5,6)]
 let srails = [(2,3,4,R);(5,3,4,L)]
 let sigs = [(1,R);(6,L)]
 let trains = [("A",1,6,R);("B",6,1,L)]
 *)
+//Lyngby
 let locs = [1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22]
-let rails = [(1,2);(3,4);(5,6);(7,8);(9,10);(11,12);(13,14);(17,18);(19,20);(21,22)]
+let rails = [(1,2);(3,4);(5,6);(7,8);(9,10);(11,12);(13,14);(15,16);(17,18);(19,20);(21,22)]
 let srails = [(2,3,9,R);(5,4,8,L);(11,10,16,L);(12,7,13,R);(18,15,19,R);(21,14,20,L)]
 let sigs = [(1,L);(2,R);(3,L);(4,R);(5,L);(6,R);(11,L);(12,R);(17,L);(18,R);(19,L);(20,R);(21,L);(22,R)]
 let trains = [("t4",1,6,R);("t5",6,1,L);("t1",17,22,R);("t3",19,17,L);("t2",22,19,L)]
+(*
 
+//Toy
+let locs = [1;2;3]
+let rails = []
+let srails = [(3,1,2,L)]
+let sigs = [(1,R)]
+let trains = [("t1",1,3,R);("t2",3,2,L)]
+*)
 let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
 
-(*
+let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result = (Solve rn)
-Console.WriteLine(sprintf "%A" (result))
+stopWatch.Stop()
+Console.WriteLine (sprintf "Time spend : %A" (stopWatch.Elapsed.TotalMilliseconds))
+
+//Console.WriteLine(sprintf "%A" (result))
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
+
 Console.WriteLine(sprintf "Explored states : %A" (Set.count exploredStates))
-*)
