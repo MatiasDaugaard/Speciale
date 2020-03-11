@@ -238,14 +238,13 @@ let rec ControllerTurn _ =
            match IsSolved s with
            | true  ->  List.rev (ToControlProgram s)
            | _ ->      match s with
-                       | S(_,sm,tm,rm,_,_) -> Map.iter (fun k v -> let nSm = (Map.add k (not v) sm)
+                       | S(_,sm,tm,rm,_,_) -> let hs = hash(sm,tm,rm)
+                                              Map.iter (fun k v -> let nSm = (Map.add k (not v) sm)
                                                                    let h = CalculateHeuristic tm
-                                                                   let hs = hash(sm,tm,rm)
                                                                    let nS = S(h,nSm,tm,rm,hs,set[fst k])
                                                                    AddNewState nS Controller) sm
                                               Map.iter (fun k v -> let nRm = SwitchRail k rm
                                                                    let h = CalculateHeuristic tm
-                                                                   let hs = hash(sm,tm,rm)
                                                                    let nS = S(h,sm,tm,nRm,hs,set [fst k; snd k])
                                                                    AddNewState nS Controller) rm
                                               ConductorTurn 0
@@ -258,10 +257,10 @@ let rec ControllerTurn _ =
     | _ -> let (s,p) = PriorityQueue.pop unexploredStatesConductor
            unexploredStatesConductor <- p
            match s with
-           | S(_,sm,tm,rm,_,_) -> List.iter (fun (t,d) -> let l = Map.find t tm
+           | S(_,sm,tm,rm,_,_) -> let hs = hash(sm,tm,rm)
+                                  List.iter (fun (t,d) -> let l = Map.find t tm
                                                           List.iter (fun x -> let nTm = Map.add t x tm
                                                                               let h = CalculateHeuristic nTm
-                                                                              let hs = hash(sm,tm,rm)
                                                                               let nS = S(h,sm,nTm,rm,hs,Set.empty)
                                                                               AddNewState nS Conductor) (NextPosition l d sm rm)) Trains
                                   ControllerTurn 0
@@ -318,7 +317,7 @@ let result = (Solve rn)
 stopWatch.Stop()
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
-Console.WriteLine(sprintf "%A" (result))
+//Console.WriteLine(sprintf "%A" (result))
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 
 Console.WriteLine(sprintf "Explored states : %A" (Set.count generatedStates))
