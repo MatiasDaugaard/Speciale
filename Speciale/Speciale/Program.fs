@@ -86,6 +86,7 @@ let FindPaths (tl:(Train*Location) list) =
 // InitiateState creates the initial state given a railway network, and sets static variables
 // Type : RailwayNetwork -> State
 let InitiateState (ll,rl,srl,sl,tl) = 
+
     let sm = List.fold (fun s v -> Map.add v false s) Map.empty sl
     let tm = List.fold (fun s (t,l,_,_) -> Map.add t l s) Map.empty tl
     let rm = List.fold (fun s (l1,l2,l3,d) -> (Map.add (l1,l2) true) (Map.add (l1,l3) false s)) Map.empty srl
@@ -154,8 +155,6 @@ let SwitchRail ((rl1,rl2):Rail) (rm:Map<Rail,bool>) =
 
 //Finds all currently reachable locations from a train
 let ReachableLocations (t:Train) (d:Direction) (sm:SignalMap) (tm:TrainMap) (rm:SplitRailMap) = 
-    let stopWatch = System.Diagnostics.Stopwatch.StartNew()
-
     let l = Map.find t tm
     let rec Locations (ls:Set<Location>) = 
         let nls = Set.fold (fun s p -> Set.union (List.fold (fun st va -> Set.add va st) Set.empty (NextPosition p d sm rm)) s) ls ls
@@ -260,7 +259,6 @@ let rec Solve rn =
     stopWatch.Stop()
     Console.WriteLine (sprintf "Time spend preprocessing: %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
-
     unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
     //unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
     ControllerTurn 0
@@ -277,13 +275,15 @@ let srails = [(2,3,4,R);(5,3,4,L)]
 let sigs = [(1,R);(6,L)]
 let trains = [("A",1,6,R);("B",6,1,L)]
 *)
+(*
 //Lyngby
 let locs = [1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22]
 let rails = [(1,2);(3,4);(5,6);(7,8);(9,10);(11,12);(13,14);(15,16);(17,18);(19,20);(21,22)]
 let srails = [(2,3,9,R);(5,4,8,L);(11,10,16,L);(12,7,13,R);(18,15,19,R);(21,14,20,L)]
 let sigs = [(1,L);(2,R);(3,L);(4,R);(5,L);(6,R);(11,L);(12,R);(17,L);(18,R);(19,L);(20,R);(21,L);(22,R)]
 let trains = [("t4",1,6,R);("t5",6,1,L);("t1",17,22,R);("t3",19,17,L);("t2",22,19,L)]
-(*
+*)
+
 
 //Toy
 let locs = [1;2;3]
@@ -291,9 +291,8 @@ let rails = []
 let srails = [(3,1,2,L)]
 let sigs = [(1,R)]
 let trains = [("t1",1,3,R);("t2",3,2,L)]
-*)
-let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
+let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result = (Solve rn)
