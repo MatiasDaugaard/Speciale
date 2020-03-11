@@ -21,10 +21,13 @@ type SignalMap = Map<Signal, bool>
 type TrainMap = Map<Train,Location>
 type SplitRailMap = Map<Rail,bool>
 
+type StateID = int
 
 type State =
     | N 
-    | S of int * SignalMap * TrainMap * SplitRailMap * State * Set<Location>
+    | S of int * SignalMap * TrainMap * SplitRailMap * StateID * Set<Location>
+
+type StateMap = Map<StateID,State>
 
 
 // Static Information Variable Declaration
@@ -37,6 +40,8 @@ let mutable Paths:(Map<Train,Set<Location>>) = Map.empty
 
 let mutable DistanceMapRight:Map<Location*Location,int> = Map.empty
 let mutable DistanceMapLeft:Map<Location*Location,int> = Map.empty
+
+let mutable States:StateMap = Map.empty
 
 
 // PREPROCCESSING PART
@@ -105,7 +110,7 @@ let InitiateState (ll,rl,srl,sl,tl) =
     DistanceMapLeft <- CreateDistanceMap ll L
     DistanceMapRight <- CreateDistanceMap ll R
     FindPaths (Map.toList tm)
-    S(0,sm,tm,rm,N,Set.empty)
+    S(0,sm,tm,rm,0,Set.empty)
     
 
 // IsSolved checks if all trains are in their goal positions if so returns true
@@ -113,13 +118,6 @@ let IsSolved (s:State) =
     match s with
     | N -> false
     | S(_,_,tm,_,_,_) -> Map.forall (fun t l -> Map.find t tm = l) Goal
-
-// Creates the control program from a state by backtracking the states
-// TODO : Should return a Map<Train*Location list, SignalMap*SplitRailMap
-let rec ToControlProgram s = 
-    match s with
-    | N -> []
-    | S(_,sm,tm,rm,x,_) -> (sm,tm,rm)::(ToControlProgram x)
 
 // Checks if it is posible to move from l1 to l2 in current state/setup
 let CanMove ((l1,l2):Rail) (d:Direction) (sm:SignalMap) (rm:SplitRailMap) =
@@ -199,8 +197,13 @@ let mutable generatedStates:Set<int> = Set.empty
 let AddState s h = 
     if not (Set.contains h generatedStates)
     then unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
-    unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
-    generatedStates <- Set.add h generatedStates
+         unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
+         generatedStates <- Set.add h generatedStates
+         let (sm,tm,rm) = match s with
+                          | S(_,sm,tm,rm,_,_) -> (sm,tm,rm)
+                          | _ -> failwith "F"
+         States <- Map.add (hash (sm,tm,rm)) s States
+    else ()
 
 
 
@@ -215,6 +218,15 @@ let AddNewState s t =
 
     | _ -> failwith "AddNewState"
 
+// Creates the control program from a state by backtracking the states
+// TODO : Should return a Map<Train*Location list, SignalMap*SplitRailMap
+let rec ToControlProgram s = 
+    match s with
+    | N -> []
+    | S(_,sm,tm,rm,x,_) when x <> 0 -> let a = 0
+                                       let y = Map.find x States
+                                       s::(ToControlProgram y)
+    | _ -> [s]
 
 // The game
 let rec ControllerTurn _ =
@@ -228,11 +240,13 @@ let rec ControllerTurn _ =
            | _ ->      match s with
                        | S(_,sm,tm,rm,_,_) -> Map.iter (fun k v -> let nSm = (Map.add k (not v) sm)
                                                                    let h = CalculateHeuristic tm
-                                                                   let nS = S(h,nSm,tm,rm,s,set[fst k])
+                                                                   let hs = hash(sm,tm,rm)
+                                                                   let nS = S(h,nSm,tm,rm,hs,set[fst k])
                                                                    AddNewState nS Controller) sm
                                               Map.iter (fun k v -> let nRm = SwitchRail k rm
                                                                    let h = CalculateHeuristic tm
-                                                                   let nS = S(h,sm,tm,nRm,s,set [fst k; snd k])
+                                                                   let hs = hash(sm,tm,rm)
+                                                                   let nS = S(h,sm,tm,nRm,hs,set [fst k; snd k])
                                                                    AddNewState nS Controller) rm
                                               ConductorTurn 0
                        | _ -> failwith "Not a state ControllerTurn function"
@@ -247,7 +261,8 @@ let rec ControllerTurn _ =
            | S(_,sm,tm,rm,_,_) -> List.iter (fun (t,d) -> let l = Map.find t tm
                                                           List.iter (fun x -> let nTm = Map.add t x tm
                                                                               let h = CalculateHeuristic nTm
-                                                                              let nS = S(h,sm,nTm,rm,s,Set.empty)
+                                                                              let hs = hash(sm,tm,rm)
+                                                                              let nS = S(h,sm,nTm,rm,hs,Set.empty)
                                                                               AddNewState nS Conductor) (NextPosition l d sm rm)) Trains
                                   ControllerTurn 0
            | _ -> failwith "Not a state"
@@ -260,6 +275,10 @@ let rec Solve rn =
     Console.WriteLine (sprintf "Time spend preprocessing: %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
     unexploredStatesPlayer <- PriorityQueue.insert s unexploredStatesPlayer
+    let (sm,tm,rm) = match s with
+                     | S(_,sm,tm,rm,_,_) -> (sm,tm,rm)
+                     | _ -> failwith "F"
+    States <- Map.add (hash (sm,tm,rm)) s States
     //unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
     ControllerTurn 0
 
@@ -275,23 +294,23 @@ let srails = [(2,3,4,R);(5,3,4,L)]
 let sigs = [(1,R);(6,L)]
 let trains = [("A",1,6,R);("B",6,1,L)]
 *)
-(*
+
 //Lyngby
 let locs = [1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22]
 let rails = [(1,2);(3,4);(5,6);(7,8);(9,10);(11,12);(13,14);(15,16);(17,18);(19,20);(21,22)]
 let srails = [(2,3,9,R);(5,4,8,L);(11,10,16,L);(12,7,13,R);(18,15,19,R);(21,14,20,L)]
 let sigs = [(1,L);(2,R);(3,L);(4,R);(5,L);(6,R);(11,L);(12,R);(17,L);(18,R);(19,L);(20,R);(21,L);(22,R)]
 let trains = [("t4",1,6,R);("t5",6,1,L);("t1",17,22,R);("t3",19,17,L);("t2",22,19,L)]
-*)
 
 
+(*
 //Toy
 let locs = [1;2;3]
 let rails = []
 let srails = [(3,1,2,L)]
 let sigs = [(1,R)]
 let trains = [("t1",1,3,R);("t2",3,2,L)]
-
+*)
 let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
@@ -299,7 +318,7 @@ let result = (Solve rn)
 stopWatch.Stop()
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
-//Console.WriteLine(sprintf "%A" (result))
+Console.WriteLine(sprintf "%A" (result))
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 
 Console.WriteLine(sprintf "Explored states : %A" (Set.count generatedStates))
