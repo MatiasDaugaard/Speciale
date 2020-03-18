@@ -48,6 +48,8 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Program.fs" />
     <None Include="packages.config" />
+    <None Include="Lyngby.txt" />
+    <None Include="SignalTest.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>

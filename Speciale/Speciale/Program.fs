@@ -1,4 +1,5 @@
 ﻿open System
+open System.IO
 open FSharpx.Collections
 
 
@@ -184,7 +185,7 @@ let CalculateHeuristic (tm:TrainMap) =
 // Datastructure used to keep track of visited and non visited states
 let mutable unexploredStatesPlayer:IPriorityQueue<State> = PriorityQueue.empty false
 let mutable unexploredStatesConductor:IPriorityQueue<State> = PriorityQueue.empty false
-let mutable generatedStates:Set<int> = Set.empty
+let mutable generatedStates:Set<StateID> = Set.empty
 
 // Add state to the queues
 let AddState s h = 
@@ -195,12 +196,10 @@ let AddState s h =
          States <- Map.add h s States
     else ()
 
-
-
 let AddNewState (s:State) t = 
     let x = match s with
             | (_,sm,tm,rm,_,_) -> (sm,tm,rm)
-    let h = hash(x)
+    let h = hash x
     match t with
     | Conductor -> AddState s h                   
     | Controller when (IsSafeState s) -> AddState s h
@@ -277,12 +276,16 @@ let sigs = [(1,R);(6,L)]
 let trains = [("A",1,6,R);("B",6,1,L)]
 *)
 
+
+(*
 //Lyngby
 let locs = [1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22]
 let rails = [(1,2);(3,4);(5,6);(7,8);(9,10);(11,12);(13,14);(15,16);(17,18);(19,20);(21,22)]
 let srails = [(2,3,9,R);(5,4,8,L);(11,10,16,L);(12,7,13,R);(18,15,19,R);(21,14,20,L)]
 let sigs = [(1,L);(2,R);(3,L);(4,R);(5,L);(6,R);(11,L);(12,R);(17,L);(18,R);(19,L);(20,R);(21,L);(22,R)]
 let trains = [("t4",1,6,R);("t5",6,1,L);("t1",17,22,R);("t3",19,17,L);("t2",22,19,L)]
+*)
+
 
 
 (*
@@ -293,7 +296,92 @@ let srails = [(3,1,2,L)]
 let sigs = [(1,R)]
 let trains = [("t1",1,3,R);("t2",3,2,L)]
 *)
-let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
+
+
+//Loading from file, TODO : Move to other file
+let toRail (s:string) =
+    let x = List.ofArray (s.Split ' ')
+    (int(List.head x), int(List.item 1 x))
+
+let toSplitRail (s:string) =
+    let x = List.ofArray (s.Split ' ')
+    let d = match List.item 3 x with
+            | "L" -> L
+            | "R" -> R
+            | x -> failwith x
+    (int(List.head x), int(List.item 1 x),int(List.item 2 x),d)
+
+let toSignal (s:string) = 
+    let x = List.ofArray (s.Split ' ')
+    let d = match List.item 1 x with
+            | "L" -> L
+            | "R" -> R
+            | x -> failwith x
+    (int(List.head x),d)
+
+let toTrain (s:string) = 
+    let x = List.ofArray (s.Split ' ')
+    let d = match List.item 3 x with
+            | "L" -> L
+            | "R" -> R
+            | x -> failwith x
+    ((List.head x), int(List.item 1 x),int(List.item 2 x),d)
+
+let GetData f = 
+
+    let path = Path.Combine(__SOURCE_DIRECTORY__,f)
+    let lines = List.ofArray (File.ReadAllLines(path))
+
+    let rec ExtractLocations l r =
+        match l with
+        | [] -> failwith "F"
+        | ":"::rest  -> r,rest
+        | s::rest ->    ExtractLocations rest ((int (s))::r)
+
+    let locations,rest = ExtractLocations lines []
+
+    let rec ExtractRails l r =
+        match l with
+        | [] -> failwith "F"
+        | ":"::rest  -> r,rest
+        | s::rest ->    ExtractRails rest ((toRail (s))::r)
+
+    let rails,rest = ExtractRails rest []
+
+    let rec ExtractSplitRails l r =
+        match l with
+        | [] -> failwith "F"
+        | ":"::rest  -> r,rest
+        | s::rest ->    ExtractSplitRails rest ((toSplitRail (s))::r)
+
+    let srails,rest = ExtractSplitRails rest []
+
+    let rec ExtractSignals l r =
+        match l with
+        | [] -> failwith "F"
+        | ":"::rest  -> r,rest
+        | s::rest ->    ExtractSignals rest ((toSignal (s))::r)
+
+    let sigs,rest = ExtractSignals rest []
+
+    let rec ExtractTrains l r =
+        match l with
+        | [] -> failwith "F"
+        | ":"::rest  -> r,rest
+        | s::rest ->    ExtractTrains rest ((toTrain (s))::r)
+
+    let trains,rest = ExtractTrains rest []
+
+    locations,rails,srails,sigs,trains
+
+
+
+
+let rn = GetData "Lyngby.txt"
+
+
+
+//let rn = (locs,rails,srails,sigs,trains):RailwayNetwork
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result = (Solve rn)
@@ -304,3 +392,6 @@ Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.To
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 
 Console.WriteLine(sprintf "Explored states : %A" (Set.count generatedStates))
+
+
+
