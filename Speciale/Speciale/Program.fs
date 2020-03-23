@@ -341,13 +341,13 @@ let GetData f =
     locations,rails,srails,sigs,trains
 
 
-let rn = GetData "Lyngby.txt"
+let rn = GetData "Copenhagen.txt"
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result = (Solve rn)
 stopWatch.Stop()
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
-List.iter (fun (S(_,_,x,_,_,_)) -> Console.WriteLine(sprintf "%A" (x))) result
+//List.iter (fun (S(_,_,x,_,_,_)) -> Console.WriteLine(sprintf "%A" (x))) result
 //Console.WriteLine(sprintf "%A" (result))
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 

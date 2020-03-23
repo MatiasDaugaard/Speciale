@@ -50,6 +50,7 @@
     <None Include="packages.config" />
     <None Include="Lyngby.txt" />
     <None Include="SignalTest.txt" />
+    <None Include="Copenhagen.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>
