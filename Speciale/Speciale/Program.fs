@@ -5,7 +5,7 @@ open Railways.Preprocess
 open FSharpx.Collections
 
 
-let rn = LoadRailway "CopenhagenRealistic.txt"
+let rn = LoadRailway "CopenhagenSwap.txt"
 let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, s = InitiateState rn
 
 let hash (sm:SignalMap,tm:TrainMap,rm:SwitchRailMap) = 
@@ -81,7 +81,7 @@ let IsSafeState (s:State) =
 
 
 //Calculates total distance for the trains current position to their goal, 
-//TODO : Make smarter
+//TODO : Make smarter , the random number should be some sort of priority
 let CalculateHeuristic (tm:TrainMap) = 
     List.fold (fun s (t,d) -> let l = Map.find t tm
                               let g = Map.find t Goal
@@ -89,8 +89,7 @@ let CalculateHeuristic (tm:TrainMap) =
                               let dm = match d with
                                        | L -> DistanceMapLeft
                                        | R -> DistanceMapRight
-                              s + Map.find (l,g) dm
-                              ) 0 Trains
+                              if t = "t1" then s + (2 * Map.find (l,g) dm) else s + Map.find (l,g) dm) 0 Trains
                               
 
 // Datastructure used to keep track of visited and non visited states
@@ -158,8 +157,7 @@ let rec ControllerTurn _ =
                                                                               let h = CalculateHeuristic nTm
                                                                               let nS = S(h,sm,nTm,rm,s,Set.empty)
                                                                               AddNewState nS Conductor)  (NextPosition l d sm rm)) Trains
-                                  //if PriorityQueue.isEmpty unexploredStatesConductor then ControllerTurn 0 else ConductorTurn 0
-                                  ControllerTurn 0
+                                  if PriorityQueue.isEmpty unexploredStatesConductor then ControllerTurn 0 else ConductorTurn 0
            | _ -> failwith "ConductorTurn" 
 
 
@@ -168,9 +166,6 @@ let rec ControllerTurn _ =
 let rec Solve s = 
     unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
     ControllerTurn 0
-
-      
-
 
 
 
@@ -188,13 +183,12 @@ let PrintSignals sm =
 
 let PrintState (S(h,sm,tm,rm,s,l)) = 
     Console.WriteLine(sprintf "%A" (tm))
-    PrintSignals sm
 
 let PrintParent (S(h,sm,tm,rm,s,l)) = 
     PrintState s
 
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
-List.iter (fun s -> if (IsSafeState s) then () else PrintParent s) result
+List.iter (fun s -> if (IsSafeState s) then (PrintState s) else PrintParent s) result
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 
 Console.WriteLine(sprintf "Explored states : %A" (Set.count generatedStates))
