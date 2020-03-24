@@ -52,7 +52,8 @@
     <None Include="packages.config" />
     <None Include="Lyngby.txt" />
     <None Include="SignalTest.txt" />
-    <None Include="Copenhagen.txt" />
+    <None Include="CopenhagenRealistic.txt" />
+    <None Include="CopenhagenSwap.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>

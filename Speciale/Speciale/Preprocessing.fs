@@ -54,7 +54,15 @@ module Preprocess =
 
         let sm = List.fold (fun s v -> Map.add v false s) Map.empty sl
         let tm = List.fold (fun s (t,l,_,_) -> Map.add t l s) Map.empty tl
-        let rm = List.fold (fun s (l1,l2,l3,d) -> (Map.add (l1,l2) true) (Map.add (l1,l3) false s)) Map.empty srl
+        let rm = List.fold (fun s (l1,l2,l3,d) -> (Map.add (l1,l2,l3,d) true) s) Map.empty srl
+
+        let addAll x m =
+            let (l1,l2,l3,d) = x
+            Map.add (l1,l2) x (Map.add (l2,l1) x (Map.add (l1,l3) x (Map.add (l3,l1) x m)))
+
+
+        let sr = List.fold (fun s v -> addAll v s) Map.empty srl
+
         let rwg = List.fold (fun s l -> Map.add l [] s) Map.empty ll
 
         let rwgRight1 = List.fold (fun s r -> addVertex r s) rwg rl
@@ -70,4 +78,4 @@ module Preprocess =
         let distanceMapLeft = CreateDistanceMap ll rwgLeft
         let distanceMapRight = CreateDistanceMap ll rwgRight
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
-        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, S(0,sm,tm,rm,N,Set.empty)
+        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, S(0,sm,tm,rm,N,Set.empty)
