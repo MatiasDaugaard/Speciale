@@ -89,7 +89,7 @@ let CalculateHeuristic (tm:TrainMap) =
                               let dm = match d with
                                        | L -> DistanceMapLeft
                                        | R -> DistanceMapRight
-                              if t = "t1" then s + (2 * Map.find (l,g) dm) else s + Map.find (l,g) dm) 0 Trains
+                              s + Map.find (l,g) dm) 0 Trains
                               
 
 // Datastructure used to keep track of visited and non visited states
