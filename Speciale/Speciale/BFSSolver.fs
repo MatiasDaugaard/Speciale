@@ -12,7 +12,7 @@ module BestFirst =
 
     let Solve rn = 
 
-        let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, s = InitiateState rn
+        let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, Priorities, s = InitiateState rn
 
         let hash (sm:SignalMap,tm:TrainMap,rm:SwitchRailMap) = 
                 Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
@@ -95,7 +95,7 @@ module BestFirst =
                                       let dm = match d with
                                                | L -> DistanceMapLeft
                                                | R -> DistanceMapRight
-                                      s + Map.find (l,g) dm) 0 Trains
+                                      s + ((Map.find t Priorities) * (Map.find (l,g) dm))) 0 Trains
                                       
 
         // Datastructure used to keep track of visited and non visited states

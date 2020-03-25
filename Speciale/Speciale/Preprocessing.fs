@@ -1,6 +1,8 @@
 ﻿namespace Railways
 
 open Railways.Types
+open FSharpx.Collections
+open System
 
 module Preprocess =
 
@@ -44,8 +46,14 @@ module Preprocess =
                                   let paths = Set.intersect paths1 paths2
                                   Map.add t paths s) Map.empty trains
 
-
-
+    // TODO : Check for trains having to swap places, give highest priority to train with the highest path*distanceMap value
+    let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (mt:Map<Location,Train>) (goals:TrainMap) =
+        match pre = cur with
+        | true -> cur
+        | false -> let m = Map.count mt
+                   let ma = cur
+                   let nm = Map.fold (fun s t l -> if Map.containsKey l mt then Map.add (Map.find l mt) (min (Map.find t cur + 1) m) s else s) ma goals 
+                   CalculatePriorities cur nm mt goals
 
 
     // InitiateState creates the initial state given a railway network, and sets static variables
@@ -78,4 +86,15 @@ module Preprocess =
         let distanceMapLeft = CreateDistanceMap ll rwgLeft
         let distanceMapRight = CreateDistanceMap ll rwgRight
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
-        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, S(0,sm,tm,rm,N,Set.empty)
+
+        let prio = List.fold (fun s (t,_,_,_) -> Map.add t 1 s) Map.empty tl
+
+        let mt = List.fold (fun s (t,l,_,_) -> Map.add l t s) Map.empty tl
+
+        let priorities = CalculatePriorities Map.empty prio mt goal
+
+
+        Console.WriteLine(sprintf "%A" (priorities))
+        Console.WriteLine(sprintf "%A" (paths))
+
+        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities,  S(0,sm,tm,rm,N,Set.empty)
