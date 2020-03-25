@@ -23,4 +23,4 @@ module Types =
 
     type State = S of int * SignalMap * TrainMap * SwitchRailMap * State * Set<Location> | N
 
-    type StateMap = Map<StateID,State>
+    //type StateMap = Map<StateID,State>

@@ -14,9 +14,10 @@ module BestFirst =
 
         let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, Priorities, s = InitiateState rn
 
-        let hash (sm:SignalMap,tm:TrainMap,rm:SwitchRailMap) = 
-                Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
-                
+        let hash s = 
+            match s with
+            | S(_,sm,tm,rm,_,_) -> Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
+            | _ -> failwith "Cannot hash N"    
 
         // IsSolved checks if all trains are in their goal positions if so returns true
         let IsSolved (s:State) =  
@@ -100,26 +101,22 @@ module BestFirst =
 
         // Datastructure used to keep track of visited and non visited states
         let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
-        let mutable unexploredStatesConductor:IPriorityQueue<State> = PriorityQueue.empty false
         let mutable generatedStates:Set<StateID> = Set.empty
 
         // Add state to the queues
         let AddState s h = 
             if not (Set.contains h generatedStates)
             then unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
-                 unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
                  generatedStates <- Set.add h generatedStates
-            else ()
+                 true
+            else false
 
         let AddNewState (s:State) t = 
-            let x = match s with
-                    | S(_,sm,tm,rm,_,_) -> (sm,tm,rm)
-                    | _ -> failwith "Add new state N"
-            let h = hash x
+            let h = hash s
             match t with
             | Conductor -> AddState s h                   
             | Controller when (IsSmartState s) && (IsSafeState s)  -> AddState s h
-            | _ -> ()
+            | _ -> false
 
 
         // Creates the control program from a state by backtracking the states
@@ -129,43 +126,50 @@ module BestFirst =
             |S(_,sm,tm,rm,x,_) when x <> N -> s::ToControlProgram x
             | _ -> [s]
 
+
+        //Function for finding all new states by moving trains in given state
+        let GenerateConductorStates s = 
+            match s with
+            | S(_,sm,tm,rm,_,_) -> List.fold (fun q (t,d) -> let l = Map.find t tm
+                                                             let ss = List.fold (fun z x -> let nTm = Map.add t x tm
+                                                                                            let h = CalculateHeuristic nTm
+                                                                                            let nS = S(h,sm,nTm,rm,s,Set.empty)
+                                                                                            if AddNewState nS Conductor then Set.add nS z else z) Set.empty (NextPosition l d sm rm)
+                                                             ss + q) Set.empty Trains
+            | _ -> failwith "ConductorTurn"
+
         // The game
         let rec ControllerTurn _ =
             match PriorityQueue.isEmpty unexploredStatesController with
-            | true when PriorityQueue.isEmpty unexploredStatesConductor -> failwith "No more states to explore"
-            | true -> ConductorTurn 0
+            | true -> failwith "No more states to explore"
             | _ -> let (s,p) = PriorityQueue.pop unexploredStatesController
                    unexploredStatesController <- p
                    match IsSolved s with
                    | true  ->  List.rev (ToControlProgram s)
                    | _ ->      match s with
-                               | S(_,sm,tm,rm,_,_) -> let sm = Map.fold (fun s k v -> Map.add k false s) Map.empty sm
-                                                      Map.iter (fun k v -> let nSm = (Map.add k (not v) sm)
-                                                                           let h = CalculateHeuristic tm
-                                                                           let nS = S(h,nSm,tm,rm,s,set[fst k])
-                                                                           AddNewState nS Controller) sm
-                                                      Map.iter (fun k v -> let nRm = SwitchRail k rm
-                                                                           let h = CalculateHeuristic tm
-                                                                           let nS = S(h,sm,tm,nRm,s,(getSwitchRailLocation k))
-                                                                           AddNewState nS Controller) rm
-                                                      ConductorTurn 0
-                               | _ -> failwith "ControllerTurn"
+                               | S(_,sm,tm,rm,_,_) ->  let sm = Map.fold (fun s k v -> Map.add k false s) Map.empty sm
+                                                       let s1 = Map.fold (fun sx k v -> let nSm = (Map.add k (not v) sm)
+                                                                                        let h = CalculateHeuristic tm
+                                                                                        let nS = S(h,nSm,tm,rm,s,set[fst k])
+                                                                                        if AddNewState nS Controller then Set.add nS sx else sx) Set.empty sm
+                                                       let s2 = Map.fold (fun sx k v -> let nRm = SwitchRail k rm
+                                                                                        let h = CalculateHeuristic tm
+                                                                                        let nS = S(h,sm,tm,nRm,s,(getSwitchRailLocation k))
+                                                                                        if AddNewState nS Controller then Set.add nS sx else sx) Set.empty rm
 
-           and ConductorTurn _ = 
-            match PriorityQueue.isEmpty unexploredStatesConductor with
+                                                       ConductorTurn (s1 + s2)
+                                            | _ -> failwith "ControllerTurn"
+
+           and ConductorTurn (states:Set<State>) = 
+            match Set.isEmpty states with
             | true when PriorityQueue.isEmpty unexploredStatesController -> failwith "No more states to explore"
             | true -> ControllerTurn 0
-            | _ -> let (s,p) = PriorityQueue.pop unexploredStatesConductor
-                   unexploredStatesConductor <- p
-                   match s with
-                   | S(_,sm,tm,rm,_,_) -> List.iter (fun (t,d) -> let l = Map.find t tm
-                                                                  List.iter (fun x -> let nTm = Map.add t x tm
-                                                                                      let h = CalculateHeuristic nTm
-                                                                                      let nS = S(h,sm,nTm,rm,s,Set.empty)
-                                                                                      AddNewState nS Conductor)  (NextPosition l d sm rm)) Trains
-                                          if PriorityQueue.isEmpty unexploredStatesConductor then ControllerTurn 0 else ConductorTurn 0
-                   | _ -> failwith "ConductorTurn" 
+            | _ -> let nStates = Set.fold (fun s v -> s + GenerateConductorStates v) Set.empty states
+                   ConductorTurn nStates
+                   
+                    
 
+        
 
         unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
         ControllerTurn 0
