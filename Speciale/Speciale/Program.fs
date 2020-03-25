@@ -14,7 +14,7 @@ let GameOver s =
     | _ -> failwith "GAMEOVER"
 
 
-let rn = LoadRailway "CopenhagenRealistic.txt"
+let rn = LoadRailway "Lyngby.txt"
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result = (Solve rn)
