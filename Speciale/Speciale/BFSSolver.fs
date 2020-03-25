@@ -2,7 +2,7 @@
 
 
 
-
+open System
 open Railways.Types
 open Railways.LoadFiles
 open Railways.Preprocess
@@ -89,14 +89,16 @@ module BestFirst =
 
         //Calculates total distance for the trains current position to their goal, 
         //TODO : Make smarter , the random number should be some sort of priority
-        let CalculateHeuristic (tm:TrainMap) = 
+        let CalculateHeuristic (tm:TrainMap) (ls:Set<Location>) = 
             List.fold (fun s (t,d) -> let l = Map.find t tm
                                       let g = Map.find t Goal
                                       if l = g then s else
                                       let dm = match d with
                                                | L -> DistanceMapLeft
                                                | R -> DistanceMapRight
-                                      s + ((Map.find t Priorities) * (Map.find (l,g) dm))) 0 Trains
+                                      s + ((Map.find t Priorities) * (Map.find (l,g) dm))
+                                      - (Map.find t Priorities) * (Set.count (Set.intersect ls (set[l])))
+                                      ) 0 Trains
                                       
 
         // Datastructure used to keep track of visited and non visited states
@@ -132,7 +134,7 @@ module BestFirst =
             match s with
             | S(_,sm,tm,rm,_,_) -> List.fold (fun q (t,d) -> let l = Map.find t tm
                                                              let ss = List.fold (fun z x -> let nTm = Map.add t x tm
-                                                                                            let h = CalculateHeuristic nTm
+                                                                                            let h = CalculateHeuristic nTm Set.empty
                                                                                             let nS = S(h,sm,nTm,rm,s,Set.empty)
                                                                                             if AddNewState nS Conductor then Set.add nS z else z) Set.empty (NextPosition l d sm rm)
                                                              ss + q) Set.empty Trains
@@ -147,13 +149,13 @@ module BestFirst =
                    match IsSolved s with
                    | true  ->  List.rev (ToControlProgram s)
                    | _ ->      match s with
-                               | S(_,sm,tm,rm,_,_) ->  let sm = Map.fold (fun s k v -> Map.add k false s) Map.empty sm
-                                                       let s1 = Map.fold (fun sx k v -> let nSm = (Map.add k (not v) sm)
-                                                                                        let h = CalculateHeuristic tm
+                               | S(x,sm,tm,rm,_,_) ->  let smn = Map.fold (fun s k v -> Map.add k false s) Map.empty sm
+                                                       let s1 = Map.fold (fun sx k v -> let nSm = (Map.add k (not v) smn)
+                                                                                        let h = CalculateHeuristic tm (set[fst k])
                                                                                         let nS = S(h,nSm,tm,rm,s,set[fst k])
                                                                                         if AddNewState nS Controller then Set.add nS sx else sx) Set.empty sm
                                                        let s2 = Map.fold (fun sx k v -> let nRm = SwitchRail k rm
-                                                                                        let h = CalculateHeuristic tm
+                                                                                        let h = CalculateHeuristic tm (getSwitchRailLocation k)
                                                                                         let nS = S(h,sm,tm,nRm,s,(getSwitchRailLocation k))
                                                                                         if AddNewState nS Controller then Set.add nS sx else sx) Set.empty rm
 

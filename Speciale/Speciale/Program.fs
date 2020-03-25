@@ -20,10 +20,14 @@ let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result = (Solve rn)
 stopWatch.Stop()
 
+let PrintTrains s =
+    match s with
+    | S(_,_,tm,_,_,_) -> Console.WriteLine(sprintf "%A" (tm))
+    | _ -> failwith "TRAINS"
 
 
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
-List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong") else ()) result
+List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong") else PrintTrains s) result
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 
 

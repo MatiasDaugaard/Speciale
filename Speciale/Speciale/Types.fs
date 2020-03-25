@@ -18,6 +18,7 @@ module Types =
     type SignalMap = Map<Signal, bool>
     type TrainMap = Map<Train,Location>
     type SwitchRailMap = Map<SwitchRail,bool>
+    type DistanceMap = Map<Location*Location,int>
 
     type StateID = int
 

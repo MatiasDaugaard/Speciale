@@ -47,18 +47,44 @@ module Preprocess =
                                   Map.add t paths s) Map.empty trains
 
     // TODO : Check for trains having to swap places, give highest priority to train with the highest path*distanceMap value
-    let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (mt:Map<Location,Train>) (goals:TrainMap) =
+    let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (tm:TrainMap) (gm:Map<Location,Train>) =
         match pre = cur with
         | true -> cur
-        | false -> let m = Map.count mt
-                   let ma = cur
-                   let nm = Map.fold (fun s t l -> if Map.containsKey l mt then Map.add (Map.find l mt) (min (Map.find t cur + 1) m) s else s) ma goals 
-                   CalculatePriorities cur nm mt goals
+        | false -> let maxPrio = Map.count tm
+                   let nm = Map.fold (fun s t l -> if Map.containsKey l gm then Map.add t (min (Map.find (Map.find l gm) cur + 1) maxPrio) s else s) cur tm 
+                   CalculatePriorities cur nm tm gm
 
+    // Calculates if a given train is part of a swap cycle, and if so return the swap cycle
+    let rec SwapCycle (tm:TrainMap) gm t s =
+        let l = Map.find t tm 
+        match Map.tryFind l gm with
+        | Some(tr) -> match Set.contains tr s with
+                      | true -> Set.add t s
+                      | false -> SwapCycle tm gm tr (Set.add t s)
+        | None -> Set.empty 
+
+    // Finds all swap cycles in the network
+    let rec FindSwapCycles (tm:TrainMap) gm =
+        Map.fold (fun s t l -> let cycle = (SwapCycle tm gm t Set.empty) 
+                               if Set.isEmpty cycle then s else Set.add cycle s) Set.empty tm
+
+    // Calculates the distance * path value used to give priorities to trains
+    let PathDistance (g:Location) (ps:Set<Location>) (dm:DistanceMap) = 
+        Set.fold (fun s v -> s + Map.find (v,g) dm) 0 ps
+
+    // Calculates the priority of all swap cycles in the network
+    let PrioritiesSwapCycle (ts:Set<Set<Train>>) (gm:TrainMap) (paths:Map<Train,Set<Location>>) (ds:Map<Train,Direction>) (dms:Map<Direction,DistanceMap>) =
+        Set.fold (fun s v -> let l = Set.fold (fun sx t -> (PathDistance (Map.find t gm) (Map.find t paths) (Map.find (Map.find t ds) dms),t)::sx) [] v
+                             let sl = List.sortDescending l
+                             let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t c sl,(c+1)) (s,2) sl
+                             ll) Map.empty ts
 
     // InitiateState creates the initial state given a railway network, and sets static variables
     // Type : RailwayNetwork -> State
     let InitiateState (ll,rl,srl,sl,tl) = 
+        let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+
+
 
         let sm = List.fold (fun s v -> Map.add v false s) Map.empty sl
         let tm = List.fold (fun s (t,l,_,_) -> Map.add t l s) Map.empty tl
@@ -89,12 +115,22 @@ module Preprocess =
 
         let prio = List.fold (fun s (t,_,_,_) -> Map.add t 1 s) Map.empty tl
 
-        let mt = List.fold (fun s (t,l,_,_) -> Map.add l t s) Map.empty tl
 
-        let priorities = CalculatePriorities Map.empty prio mt goal
+        let gl = List.fold (fun s (t,_,l,_) -> Map.add l t s) Map.empty tl
+        let ds = List.fold (fun s (t,_,_,d) -> Map.add t d s) Map.empty tl
+        let dms = Map.add L distanceMapLeft (Map.add R distanceMapRight Map.empty)
 
+        let swapCycles = FindSwapCycles tm gl
+
+        let priorities = CalculatePriorities Map.empty prio tm gl
+
+        let prioSwap = PrioritiesSwapCycle swapCycles goal paths ds dms
+
+        let priorities = Map.fold (fun s k v -> Map.add k v s) priorities prioSwap
+
+        stopWatch.Stop()
+        Console.WriteLine (sprintf "Time spend in preprocessing : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
         Console.WriteLine(sprintf "%A" (priorities))
-        Console.WriteLine(sprintf "%A" (paths))
 
         trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities,  S(0,sm,tm,rm,N,Set.empty)
