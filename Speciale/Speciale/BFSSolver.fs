@@ -147,7 +147,8 @@ module BestFirst =
             | _ -> let (s,p) = PriorityQueue.pop unexploredStatesController
                    unexploredStatesController <- p
                    match IsSolved s with
-                   | true  ->  List.rev (ToControlProgram s)
+                   | true  ->  Console.WriteLine(sprintf "States generated : %A" (Set.count generatedStates))
+                               List.rev (ToControlProgram s)
                    | _ ->      match s with
                                | S(x,sm,tm,rm,_,_) ->  let smn = Map.fold (fun s k v -> Map.add k false s) Map.empty sm
                                                        let s1 = Map.fold (fun sx k v -> let nSm = (Map.add k (not v) smn)
