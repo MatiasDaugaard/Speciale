@@ -14,9 +14,10 @@ module BestFirst =
 
         let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, s = InitiateState rn
 
-        let hash (sm:SignalMap,tm:TrainMap,rm:SwitchRailMap) = 
-                Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
-                
+        let hash s = 
+            match s with
+            | S(_,sm,tm,rm,_,_) -> Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
+            | _ -> failwith "Cannot hash N"    
 
         // IsSolved checks if all trains are in their goal positions if so returns true
         let IsSolved (s:State) =  
@@ -100,23 +101,18 @@ module BestFirst =
 
         // Datastructure used to keep track of visited and non visited states
         let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
-        // let mutable unexploredStatesConductor:IPriorityQueue<State> = PriorityQueue.empty false
         let mutable generatedStates:Set<StateID> = Set.empty
 
         // Add state to the queues
         let AddState s h = 
             if not (Set.contains h generatedStates)
             then unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
-                 //unexploredStatesConductor <- PriorityQueue.insert s unexploredStatesConductor
                  generatedStates <- Set.add h generatedStates
                  true
             else false
 
         let AddNewState (s:State) t = 
-            let x = match s with
-                    | S(_,sm,tm,rm,_,_) -> (sm,tm,rm)
-                    | _ -> failwith "Add new state N"
-            let h = hash x
+            let h = hash s
             match t with
             | Conductor -> AddState s h                   
             | Controller when (IsSmartState s) && (IsSafeState s)  -> AddState s h
@@ -131,8 +127,8 @@ module BestFirst =
             | _ -> [s]
 
 
-        //Helper function
-        let Ct s = 
+        //Function for finding all new states by moving trains in given state
+        let GenerateConductorStates s = 
             match s with
             | S(_,sm,tm,rm,_,_) -> List.fold (fun q (t,d) -> let l = Map.find t tm
                                                              let ss = List.fold (fun z x -> let nTm = Map.add t x tm
@@ -168,7 +164,7 @@ module BestFirst =
             match Set.isEmpty states with
             | true when PriorityQueue.isEmpty unexploredStatesController -> failwith "No more states to explore"
             | true -> ControllerTurn 0
-            | _ -> let nStates = Set.fold (fun s v -> s + Ct v) Set.empty states
+            | _ -> let nStates = Set.fold (fun s v -> s + GenerateConductorStates v) Set.empty states
                    ConductorTurn nStates
                    
                     
