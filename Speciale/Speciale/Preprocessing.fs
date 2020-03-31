@@ -46,13 +46,16 @@ module Preprocess =
                                   let paths = Set.intersect paths1 paths2
                                   Map.add t paths s) Map.empty trains
 
-    // TODO : Check for trains having to swap places, give highest priority to train with the highest path*distanceMap value
-    let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (tm:TrainMap) (gm:Map<Location,Train>) =
+    // 
+    let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (tm:TrainMap) (gm:Map<Location,Train>) x =
         match pre = cur with
         | true -> cur
-        | false -> let maxPrio = Map.count tm
-                   let nm = Map.fold (fun s t l -> if Map.containsKey l gm then Map.add t (min (Map.find (Map.find l gm) cur + 1) maxPrio) s else s) cur tm 
-                   CalculatePriorities cur nm tm gm
+        | false -> let maxPrio = Map.count tm + x
+                   let nm = Map.fold (fun s t l -> if Map.containsKey l gm && Map.containsKey t cur then Map.add t (min (Map.find (Map.find l gm) cur + 1) maxPrio) s else s) cur tm 
+                   CalculatePriorities cur nm tm gm x
+
+    let Swappers tm gm =
+        Map.fold (fun s k v -> if Map.containsKey v gm then Set.add k (Set.add (Map.find v gm) s) else s) Set.empty tm
 
     // Calculates if a given train is part of a swap cycle, and if so return the swap cycle
     let rec SwapCycle (tm:TrainMap) gm t s =
@@ -74,10 +77,10 @@ module Preprocess =
 
     // Calculates the priority of all swap cycles in the network
     let PrioritiesSwapCycle (ts:Set<Set<Train>>) (gm:TrainMap) (paths:Map<Train,Set<Location>>) (ds:Map<Train,Direction>) (dms:Map<Direction,DistanceMap>) =
-        Set.fold (fun s v -> let l = Set.fold (fun sx t -> (PathDistance (Map.find t gm) (Map.find t paths) (Map.find (Map.find t ds) dms),t)::sx) [] v
-                             let sl = List.sortDescending l
-                             let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t c sl,(c+1)) (s,2) sl
-                             ll) Map.empty ts
+        Set.fold (fun (sm,sc) v -> let l = Set.fold (fun sx t -> (PathDistance (Map.find t gm) (Map.find t paths) (Map.find (Map.find t ds) dms),t)::sx) [] v
+                                   let sl = List.sortDescending l
+                                   let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
+                                   (ll,sc+(Map.count gm))) (Map.empty,0) ts
 
     // InitiateState creates the initial state given a railway network, and sets static variables
     // Type : RailwayNetwork -> State
@@ -113,24 +116,39 @@ module Preprocess =
         let distanceMapRight = CreateDistanceMap ll rwgRight
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
 
-        let prio = List.fold (fun s (t,_,_,_) -> Map.add t 1 s) Map.empty tl
+
+
 
 
         let gl = List.fold (fun s (t,_,l,_) -> Map.add l t s) Map.empty tl
         let ds = List.fold (fun s (t,_,_,d) -> Map.add t d s) Map.empty tl
         let dms = Map.add L distanceMapLeft (Map.add R distanceMapRight Map.empty)
 
+
+        //TODO : Optimize cause spending too much time in preprocess
+        let swappers = Swappers tm gl
+
         let swapCycles = FindSwapCycles tm gl
 
-        let priorities = CalculatePriorities Map.empty prio tm gl
+        let nonCycles = Set.difference swappers (Set.fold (fun s v -> s + v) Set.empty swapCycles)
 
-        let prioSwap = PrioritiesSwapCycle swapCycles goal paths ds dms
+        let swapCyclePrio,x = PrioritiesSwapCycle swapCycles goal paths ds dms
 
-        let priorities = Map.fold (fun s k v -> Map.add k v s) priorities prioSwap
+        let prio = Set.fold (fun s t -> Map.add t (x+1) s) Map.empty nonCycles
+
+        let nonCyclePrio = CalculatePriorities Map.empty prio tm gl x
+
+        let priorities = Map.fold (fun s k v -> Map.add k v s) nonCyclePrio swapCyclePrio
+
+        let c = Map.fold (fun s k v -> max s v) 0 priorities
+
+
+        //TODO : Check if train in on path if so give lower priority than that train
+        let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,c+1) tm
 
         stopWatch.Stop()
         Console.WriteLine (sprintf "Time spend in preprocessing : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
         Console.WriteLine(sprintf "%A" (priorities))
 
-        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities,  S(0,sm,tm,rm,N,Set.empty)
+        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities, x,  S(0,sm,tm,rm,N,Set.empty)

@@ -12,7 +12,7 @@ module BestFirst =
 
     let Solve rn = 
 
-        let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, Priorities, s = InitiateState rn
+        let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, Priorities, MaxPrio, s = InitiateState rn
 
         let hash s = 
             match s with
@@ -77,7 +77,7 @@ module BestFirst =
         // Checks if any trains can currently reach another train returns true if not or reachable location not on path
         let IsSafeState (s:State) =
             match s with
-            | S(_,sm,tm,rm,ps,l) -> // Checks if trains can reach other or can go off path, if true state is not relevant
+            | S(_,sm,tm,rm,ps,_) -> // Checks if trains can reach other or can go off path, if true state is not relevant
                                     List.forall (fun (t,d) -> let rl = ReachableLocations t d sm tm rm
                                                               let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
                                                               //Should not be able to reach another train
@@ -88,7 +88,7 @@ module BestFirst =
 
 
         //Calculates total distance for the trains current position to their goal, 
-        //TODO : Make smarter , the random number should be some sort of priority
+        //TODO : Make smarter
         let CalculateHeuristic (tm:TrainMap) (ls:Set<Location>) = 
             List.fold (fun s (t,d) -> let l = Map.find t tm
                                       let g = Map.find t Goal
@@ -140,6 +140,21 @@ module BestFirst =
                                                              ss + q) Set.empty Trains
             | _ -> failwith "ConductorTurn"
 
+
+        let TrainToSignal s r sm =
+            match Map.tryFind s sm with
+            | Some(_) -> s::r
+            | _ -> r
+
+        let TrainToSwitchRail (l,d) =
+            let lns = match d with
+                      | L -> Map.find l RWGLeft
+                      | R -> Map.find l RWGRight
+            let rs = List.fold (fun s v -> (l,v)::s) [] lns
+            List.fold (fun s v -> match Map.tryFind v SwitchRails with
+                                  | Some(sr) -> Set.add sr s
+                                  | _ -> s) Set.empty rs
+
         // The game
         let rec ControllerTurn _ =
             match PriorityQueue.isEmpty unexploredStatesController with
@@ -151,16 +166,21 @@ module BestFirst =
                                List.rev (ToControlProgram s)
                    | _ ->      match s with
                                | S(x,sm,tm,rm,_,_) ->  let smn = Map.fold (fun s k v -> Map.add k false s) Map.empty sm
-                                                       let s1 = Map.fold (fun sx k v -> let nSm = (Map.add k (not v) smn)
-                                                                                        let h = CalculateHeuristic tm (set[fst k])
-                                                                                        let nS = S(h,nSm,tm,rm,s,set[fst k])
-                                                                                        if AddNewState nS Controller then Set.add nS sx else sx) Set.empty sm
-                                                       let s2 = Map.fold (fun sx k v -> let nRm = SwitchRail k rm
-                                                                                        let h = CalculateHeuristic tm (getSwitchRailLocation k)
-                                                                                        let nS = S(h,sm,tm,nRm,s,(getSwitchRailLocation k))
-                                                                                        if AddNewState nS Controller then Set.add nS sx else sx) Set.empty rm
-
-                                                       ConductorTurn (s1 + s2)
+                                                       let mp = Map.fold (fun s k v -> if Map.find k tm <> Map.find k Goal then max s v else s) 0 Priorities
+                                                       let tp = if MaxPrio >= mp then List.fold (fun s (t,_) -> Set.add t s) Set.empty Trains else Map.fold (fun s k v -> if v = mp then Set.add k s else s) Set.empty Priorities
+                                                       
+                                                       let tSigs = List.fold (fun s (t,d) -> if Set.contains t tp then TrainToSignal (Map.find t tm,d) s sm else s) [] Trains
+                                                       let s1 = List.fold (fun sx v -> let nSm = (Map.add (v) true smn)
+                                                                                       let h = CalculateHeuristic tm (set[fst v])
+                                                                                       let nS = S(h,nSm,tm,rm,s,set[fst v])
+                                                                                       if AddNewState nS Controller then Set.add nS sx else sx) Set.empty tSigs
+                                                       let tSR = List.fold (fun s v -> TrainToSwitchRail v + s) Set.empty tSigs
+                                                       let s2 = Set.fold (fun sx k -> let nRm = SwitchRail k rm
+                                                                                      let locs = (getSwitchRailLocation k)
+                                                                                      let h = CalculateHeuristic tm locs
+                                                                                      let nS = S(h,sm,tm,nRm,s,locs)
+                                                                                      if AddNewState nS Controller then Set.add nS sx else sx) Set.empty tSR
+                                                       ConductorTurn (s1+s2)
                                             | _ -> failwith "ControllerTurn"
 
            and ConductorTurn (states:Set<State>) = 
