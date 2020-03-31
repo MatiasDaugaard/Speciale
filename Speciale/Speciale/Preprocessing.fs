@@ -93,27 +93,27 @@ module Preprocess =
         let tm = List.fold (fun s (t,l,_,_) -> Map.add t l s) Map.empty tl
         let rm = List.fold (fun s (l1,l2,l3,d) -> (Map.add (l1,l2,l3,d) true) s) Map.empty srl
 
-        let addAll x m =
+        let addAllSwitchrail (x:SwitchRail) m =
             let (l1,l2,l3,d) = x
             Map.add (l1,l2) x (Map.add (l2,l1) x (Map.add (l1,l3) x (Map.add (l3,l1) x m)))
 
 
-        let sr = List.fold (fun s v -> addAll v s) Map.empty srl
+        let sr = List.fold (fun s v -> addAllSwitchrail v s) Map.empty srl
 
         let rwg = List.fold (fun s l -> Map.add l [] s) Map.empty ll
 
-        let rwgRight1 = List.fold (fun s r -> addVertex r s) rwg rl
-        let rwgRight2 = List.fold (fun s (l1,l2,l3,d) -> if d = R then addVertex (l1,l2) (addVertex (l1,l3) s) else addVertex (l2,l1) (addVertex (l3,l1) s)) rwgRight1 srl
 
-        let rwgLeft1 = List.fold (fun s (l1,l2) -> addVertex (l2,l1) s) rwg rl
-        let rwgLeft2 = List.fold (fun s (l1,l2,l3,d) -> if d = L then addVertex (l1,l2) (addVertex (l1,l3) s) else addVertex (l2,l1) (addVertex (l3,l1) s)) rwgLeft1 srl
 
-        let trains = List.rev (List.fold (fun s (t,_,_,d) -> (t,d)::s) [] tl)
-        let rwgLeft = rwgLeft2
-        let rwgRight = rwgRight2
-        let goal = (List.fold (fun s (t,_,l,_) -> Map.add t l s) Map.empty tl)
+
+        let rwgL = List.fold (fun s (l1,l2) -> addVertex (l2,l1) s) rwg rl
+        let rwgLeft = List.fold (fun s (l1,l2,l3,d) -> if d = L then addVertex (l1,l2) (addVertex (l1,l3) s) else addVertex (l2,l1) (addVertex (l3,l1) s)) rwgL srl
+        let rwgRight = Map.fold (fun s l ll -> List.fold (fun ss loc -> Map.add loc (l::Map.find loc ss) ss) s ll) rwg rwgLeft
+
+
+        let trains,goal = (List.fold (fun (st,sg) (t,_,l,d) -> (t,d)::st,Map.add t l sg) ([],Map.empty) tl)
+
         let distanceMapLeft = CreateDistanceMap ll rwgLeft
-        let distanceMapRight = CreateDistanceMap ll rwgRight
+        let distanceMapRight = Map.fold (fun s (l1,l2) d -> Map.add (l2,l1) d s) Map.empty distanceMapLeft
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
 
 
@@ -125,7 +125,7 @@ module Preprocess =
         let dms = Map.add L distanceMapLeft (Map.add R distanceMapRight Map.empty)
 
 
-        //TODO : Optimize cause spending too much time in preprocess
+
         let swappers = Swappers tm gl
 
         let swapCycles = FindSwapCycles tm gl
@@ -144,11 +144,20 @@ module Preprocess =
 
 
         //TODO : Check if train in on path if so give lower priority than that train
-        let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,c+1) tm
+
+        let startLocations = Set.ofSeq (Map.values tm)
+        let openPathTrains = List.fold (fun s (t,d) -> let p = (Map.find t paths) - (set[Map.find t tm])
+                                                       if Set.isEmpty (Set.intersect p startLocations) then Set.add t s else s) Set.empty trains
+
+        let priorities,y = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) && not (Set.contains k openPathTrains) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,c+1) tm
+
+
+        let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,y+1) tm
 
         stopWatch.Stop()
-        Console.WriteLine (sprintf "Time spend in preprocessing : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
+        //Console.WriteLine(sprintf "%A" (openPathTrains))
+        //Console.WriteLine (sprintf "Time spend in preprocessing : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
-        Console.WriteLine(sprintf "%A" (priorities))
+        //Console.WriteLine(sprintf "%A" (priorities))
 
-        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities, x,  S(0,sm,tm,rm,N,Set.empty)
+        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities, x,  S(0,sm,tm,rm,N)
