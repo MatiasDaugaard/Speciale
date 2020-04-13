@@ -6,9 +6,6 @@ open System
 
 module Preprocess =
 
-    
-    // PREPROCCESSING PART
-
     // Used for creating the railway graph
     let addVertex ((l1,l2):Rail) (m:RailwayGraph) = 
         let ll = Map.find l1 m
@@ -16,6 +13,7 @@ module Preprocess =
 
 
     // Distance from Location l in direction d to all other reachable locations
+    // TODO : Make smart by use of already calculated distances
     let rec CreateDistanceMapLoc (loc:Location) (currentLocations:Set<Location>) (explored:Set<Location>) c m rwg =
         match Set.isEmpty currentLocations with
         | true -> m
@@ -24,7 +22,7 @@ module Preprocess =
                CreateDistanceMapLoc loc nexts (Set.union nexts explored) (c+1) nm rwg
 
 
-    let CreateDistanceMap ll rwg = List.fold (fun s v -> CreateDistanceMapLoc v (set [v]) (set [v]) 1 (Map.add (v,v) 0 s) rwg) Map.empty ll 
+    let CreateDistanceMap ll rwg = List.fold (fun m v -> CreateDistanceMapLoc v (set [v]) (set [v]) 1 (Map.add (v,v) 0 m) rwg) Map.empty ll
 
 
     // Found by taking intersection of reachable locations going train direction from starting location and the opposite direction from the gosl location
@@ -82,42 +80,37 @@ module Preprocess =
                                    let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
                                    (ll,sc+(Map.count gm))) (Map.empty,0) ts
 
-    // InitiateState creates the initial state given a railway network, and sets static variables
-    // Type : RailwayNetwork -> State
+    // InitiateState creates the initial state given a railway network, and static global variables
     let InitiateState (ll,rl,srl,sl,tl) = 
-        let stopWatch = System.Diagnostics.Stopwatch.StartNew()
-
 
 
         let sm = List.fold (fun s v -> Map.add v false s) Map.empty sl
         let tm = List.fold (fun s (t,l,_,_) -> Map.add t l s) Map.empty tl
         let rm = List.fold (fun s (l1,l2,l3,d) -> (Map.add (l1,l2,l3,d) true) s) Map.empty srl
 
+
+        let trains,goal = (List.fold (fun (st,sg) (t,_,l,d) -> (t,d)::st,Map.add t l sg) ([],Map.empty) tl)
+
         let addAllSwitchrail (x:SwitchRail) m =
             let (l1,l2,l3,d) = x
             Map.add (l1,l2) x (Map.add (l2,l1) x (Map.add (l1,l3) x (Map.add (l3,l1) x m)))
 
-
         let sr = List.fold (fun s v -> addAllSwitchrail v s) Map.empty srl
 
+
         let rwg = List.fold (fun s l -> Map.add l [] s) Map.empty ll
-
-
-
-
         let rwgL = List.fold (fun s (l1,l2) -> addVertex (l2,l1) s) rwg rl
         let rwgLeft = List.fold (fun s (l1,l2,l3,d) -> if d = L then addVertex (l1,l2) (addVertex (l1,l3) s) else addVertex (l2,l1) (addVertex (l3,l1) s)) rwgL srl
         let rwgRight = Map.fold (fun s l ll -> List.fold (fun ss loc -> Map.add loc (l::Map.find loc ss) ss) s ll) rwg rwgLeft
 
-
-        let trains,goal = (List.fold (fun (st,sg) (t,_,l,d) -> (t,d)::st,Map.add t l sg) ([],Map.empty) tl)
+        Console.WriteLine(sprintf "%A" rwgLeft)
 
         let distanceMapLeft = CreateDistanceMap ll rwgLeft
         let distanceMapRight = Map.fold (fun s (l1,l2) d -> Map.add (l2,l1) d s) Map.empty distanceMapLeft
+
+        Console.WriteLine(sprintf "%A" distanceMapLeft)
+
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
-
-
-
 
 
         let gl = List.fold (fun s (t,_,l,_) -> Map.add l t s) Map.empty tl
@@ -143,7 +136,7 @@ module Preprocess =
         let c = Map.fold (fun s k v -> max s v) 0 priorities
 
 
-        //TODO : Check if train in on path if so give lower priority than that train
+        //TODO : Priority order is not yet perfect
 
         let startLocations = Set.ofSeq (Map.values tm)
         let openPathTrains = List.fold (fun s (t,d) -> let p = (Map.find t paths) - (set[Map.find t tm])
@@ -154,10 +147,7 @@ module Preprocess =
 
         let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,y+1) tm
 
-        stopWatch.Stop()
-        //Console.WriteLine(sprintf "%A" (openPathTrains))
-        //Console.WriteLine (sprintf "Time spend in preprocessing : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 
         //Console.WriteLine(sprintf "%A" (priorities))
 
-        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities, x,  S(0,sm,tm,rm,N)
+        trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities, x, sm,  S(0,sm,tm,rm,N)
