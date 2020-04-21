@@ -74,7 +74,7 @@ module LoadFiles =
 
         let rec ExtractTrains l r =
             match l with
-            | [] -> failwith "F"
+            | [] -> r,[]
             | ":"::rest  -> r,rest
             | s::rest ->    ExtractTrains rest ((toTrain (s))::r)
 

@@ -99,16 +99,16 @@ module Preprocess =
 
 
         let rwg = List.fold (fun s l -> Map.add l [] s) Map.empty ll
-        let rwgL = List.fold (fun s (l1,l2) -> addVertex (l2,l1) s) rwg rl
+        let rwgL = List.fold (fun s (l1,l2) -> addVertex (max l1 l2,min l1 l2) s) rwg rl
         let rwgLeft = List.fold (fun s (l1,l2,l3,d) -> if d = L then addVertex (l1,l2) (addVertex (l1,l3) s) else addVertex (l2,l1) (addVertex (l3,l1) s)) rwgL srl
         let rwgRight = Map.fold (fun s l ll -> List.fold (fun ss loc -> Map.add loc (l::Map.find loc ss) ss) s ll) rwg rwgLeft
 
-        Console.WriteLine(sprintf "%A" rwgLeft)
+        //Console.WriteLine(sprintf "%A" rwgLeft)
 
         let distanceMapLeft = CreateDistanceMap ll rwgLeft
         let distanceMapRight = Map.fold (fun s (l1,l2) d -> Map.add (l2,l1) d s) Map.empty distanceMapLeft
 
-        Console.WriteLine(sprintf "%A" distanceMapLeft)
+        //Console.WriteLine(sprintf "%A" distanceMapLeft)
 
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
 
