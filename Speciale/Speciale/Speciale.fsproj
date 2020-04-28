@@ -55,6 +55,7 @@
     <None Include="SignalTest.txt" />
     <None Include="CopenhagenRealistic.txt" />
     <None Include="CopenhagenSwap.txt" />
+    <None Include="CopenhagenRush.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>

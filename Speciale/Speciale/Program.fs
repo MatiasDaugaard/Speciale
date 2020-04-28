@@ -15,7 +15,7 @@ let GameOver s =
     | _ -> failwith "GAMEOVER"
     
 
-let rn = LoadRailway "CopenhagenSwap.txt"
+let rn = LoadRailway "CopenhagenRealistic.txt"
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result,x = (Solve rn)
@@ -28,7 +28,7 @@ let PrintTrains s =
 
 
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
-List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong GameOver") else ()) result
+List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong GameOver") else ()) (List.rev result)
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 Console.WriteLine(sprintf "Generated states : %A" (x))
 

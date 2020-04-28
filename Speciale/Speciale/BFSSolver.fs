@@ -120,7 +120,7 @@ module BestFirst =
 
 
         // Creates the control program from a state by backtracking the states
-        // TODO : Should return a Map<Train*Location list, SignalMap*SwitchRailMap>
+        // TODO : Should return a Map<Train*Location list, SignalMap*SwitchRailMap> or save it smart way in file
         let rec ToControlProgram s = 
             match s with
             |S(_,sm,tm,rm,x) when x <> N -> s::ToControlProgram x
@@ -128,14 +128,18 @@ module BestFirst =
 
 
         //Function for finding all new states by moving trains in a given state
+        //TODO : Look into only looking at moveable train
         let GenerateConductorStates s = 
             match s with
-            | S(_,sm,tm,rm,_) -> List.fold (fun q (t,d) -> let l = Map.find t tm
-                                                           let ss = List.fold (fun z x -> let nTm = Map.add t x tm
-                                                                                          let h = CalculateHeuristic nTm Set.empty
-                                                                                          let nS = S(h,sm,nTm,rm,s)
-                                                                                          if AddNewState nS Conductor Set.empty then Set.add nS z else z) Set.empty (NextPosition l d sm rm)
-                                                           ss + q) Set.empty Trains
+            | S(_,sm,tm,rm,_) -> let nTm = List.fold (fun st (t,d) -> let l = Map.find t st
+                                                                      let ps = NextPosition l d sm rm
+                                                                      let p = if List.isEmpty ps then l else List.head ps
+                                                                      Map.add t p st) tm Trains
+
+
+                                 let h = CalculateHeuristic nTm Set.empty
+                                 let nS = S(h,sm,nTm,rm,s)
+                                 if AddNewState nS Conductor Set.empty then set [nS] else Set.empty
             | _ -> failwith "ConductorTurn"
 
 
@@ -148,6 +152,14 @@ module BestFirst =
             List.fold (fun s v -> match Map.tryFind v SwitchRails with
                                   | Some(sr) -> Set.add sr s
                                   | _ -> s) Set.empty rs
+
+        // Helper function to find all switch rail combinations
+        let rec allCom r sr = 
+            match sr with
+            | []       -> r
+            | x::y::xs -> let r = Set.fold (fun s v -> Set.add (Set.add y v) (Set.add (Set.add x v) s)) Set.empty r
+                          allCom r xs
+            | _ -> failwith "F"
 
         // The game
         let rec ControllerTurn _ =
@@ -164,29 +176,76 @@ module BestFirst =
                                                      let tp = if MaxPrio >= mp then List.fold (fun s (t,_) -> Set.add t s) Set.empty Trains else Map.fold (fun s k v -> if v = mp then Set.add k s else s) Set.empty Priorities
                                                      // Find signals near all picked trains
                                                      let tSigs = List.fold (fun s (t,d) -> if ((Set.contains t tp) && (Map.containsKey (Map.find t tm,d) SM)) then (Map.find t tm,d)::s else s) [] Trains
-                                                     // Create new states one for each signal being turned on
-                                                     let s1 = List.fold (fun sx v -> let nSm = (Map.add (v) true SM)
-                                                                                     let locs = set[fst v]
-                                                                                     let h = CalculateHeuristic tm locs
-                                                                                     let nS = S(h,nSm,tm,rm,s)
-                                                                                     if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSigs
-                                                     // Find switchrails near picked trains 
-                                                     let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty tSigs
-                                                     // Create new states one for each switchrail change
-                                                     let s2 = Set.fold (fun sx (sr,sg) -> let nRm = SwitchRail sr rm
-                                                                                          let locs = (getSwitchRailLocation sr nRm)
-                                                                                          let h = CalculateHeuristic tm locs
-                                                                                          let nSm = Map.add sg true SM
-                                                                                          let nS = S(h,nSm,tm,nRm,s)
-                                                                                          if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSR
-                                                     ConductorTurn (s1+s2)
+
+                                                     match Set.count tp with
+                                                     | 1 -> // Create new states one for each signal being turned on
+                                                            let s1 = List.fold (fun sx v -> let nSm = (Map.add (v) true SM)
+                                                                                            let locs = set[fst v]
+                                                                                            let h = CalculateHeuristic tm locs
+                                                                                            let nS = S(h,nSm,tm,rm,s)
+                                                                                            if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSigs
+                                                            // Find switchrails near picked trains 
+                                                            let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty tSigs
+                                                            // Create new states one for each switchrail change
+                                                            let s2 = Set.fold (fun sx (sr,sg) -> let nRm = SwitchRail sr rm
+                                                                                                 let locs = (getSwitchRailLocation sr nRm)
+                                                                                                 let h = CalculateHeuristic tm locs
+                                                                                                 let nSm = Map.add sg true SM
+                                                                                                 let nS = S(h,nSm,tm,nRm,s)
+                                                                                                 if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSR
+                                                            ConductorTurn (s1+s2)
+                                                     | _ when MaxPrio >= mp -> // Create new states one for each signal being turned on
+                                                                               let s1 = List.fold (fun sx v -> let nSm = (Map.add (v) true SM)
+                                                                                                               let locs = set[fst v]
+                                                                                                               let h = CalculateHeuristic tm locs
+                                                                                                               let nS = S(h,nSm,tm,rm,s)
+                                                                                                               if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSigs
+                                                                               // Find switchrails near picked trains 
+                                                                               let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty tSigs
+                                                                               // Create new states one for each switchrail change
+                                                                               let s2 = Set.fold (fun sx (sr,sg) -> let nRm = SwitchRail sr rm
+                                                                                                                    let locs = (getSwitchRailLocation sr nRm)
+                                                                                                                    let h = CalculateHeuristic tm locs
+                                                                                                                    let nSm = Map.add sg true SM
+                                                                                                                    let nS = S(h,nSm,tm,nRm,s)
+                                                                                                                    if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSR
+                                                                               ConductorTurn (s1+s2)
+                                                     | _ -> // Create one new states for all relevant signals being turned on
+                                                            let nSm = List.fold (fun s v -> Map.add v true s) SM tSigs
+                                                            let locs = List.fold (fun s v -> Set.add (fst v) s) Set.empty tSigs
+                                                            let h = CalculateHeuristic tm locs
+                                                            let nS = S(h,nSm,tm,rm,s)
+                                                            let s1 = if AddNewState nS Controller locs then set [nS] else Set.empty
+                                                            // Find switchrails near picked trains 
+                                                            let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty tSigs
+                                                            // Create new states one for each relevant switchrail combination change
+                                                            let srs = Set.fold (fun s (sr,_) -> (sr,true)::(sr,false)::s) [] tSR
+                                                            if List.length srs > 0 
+                                                            then
+                                                                let x = set [List.item 0 srs]
+                                                                let y = set [List.item 1 srs]
+                                                                let srs = List.tail (List.tail srs)
+                                                                let srcom = allCom (Set.add x (Set.add y Set.empty)) srs
+                                                            
+
+                                                                let s2 = Set.fold (fun ss v -> let nRm = Set.fold (fun sx (sr,b) -> Map.add sr b sx) rm v
+                                                                                               let locs = Set.fold (fun sx (sr,_) -> sx + (getSwitchRailLocation sr nRm)) Set.empty v
+                                                                                               let h = CalculateHeuristic tm locs
+                                                                                               let nS = S(h,nSm,tm,nRm,s)
+                                                                                               if AddNewState nS Controller locs then Set.add nS ss else ss) Set.empty srcom
+                                                                ConductorTurn (s1+s2)
+                                                            else 
+                                                                ConductorTurn s1
+
+
+                                                     
                                | _ -> failwith "ControllerTurn"
 
            and ConductorTurn (states:Set<State>) = 
             match Set.isEmpty states with
             | true when PriorityQueue.isEmpty unexploredStatesController -> failwith "No more states to explore"
             | true -> ControllerTurn 0
-            | _ -> let nStates = Set.fold (fun s v -> s + GenerateConductorStates v) Set.empty states
+            | _ -> let nStates = Set.fold (fun (s) v -> s + GenerateConductorStates v) (Set.empty) states
                    ConductorTurn nStates
                    
                     

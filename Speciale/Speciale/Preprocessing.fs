@@ -14,6 +14,9 @@ module Preprocess =
 
     // Distance from Location l in direction d to all other reachable locations
     // TODO : Make smart by use of already calculated distances
+    // Find all end points left or right
+    // Calculate their distances to all reachable locations
+    // Then for each next location use the distance already calculated
     let rec CreateDistanceMapLoc (loc:Location) (currentLocations:Set<Location>) (explored:Set<Location>) c m rwg =
         match Set.isEmpty currentLocations with
         | true -> m
@@ -80,7 +83,7 @@ module Preprocess =
                                    let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
                                    (ll,sc+(Map.count gm))) (Map.empty,0) ts
 
-
+    // TODO IMPORTANT : Check if moving a train to goal will block other train if so DO NOT DO IT
     let rec pfun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (paths:Map<Train,Set<Location>>) (pm:Map<Train,int>) (c:int) =
         match Set.isEmpty ts with
         | true  -> pm
@@ -138,6 +141,7 @@ module Preprocess =
         let distanceMapRight = Map.fold (fun s (l1,l2) d -> Map.add (l2,l1) d s) Map.empty distanceMapLeft
 
         // Find all locations on all paths from start to end location for all trains
+        // TODO : Save each unique path for smarter priority function
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
 
         // Map of end locations and their corresponding train
@@ -171,23 +175,10 @@ module Preprocess =
         let c = Map.fold (fun s k v -> max s v) 0 priorities
 
 
-        // TODO : Priority order is not yet perfect
+        // TODO : Priority order is not yet perfect, missing to check if putting trains on end location blocks for trains, smart path needed
         
         let ts = (Map.keySet tm) - swappers
         let priorities = pfun tm ts goal paths priorities (c+Set.count ts) 
         let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,c+1) tm
-        
-        (*
-        let startLocations = Set.ofSeq (Map.values tm)
-        let openPathTrains = List.fold (fun s (t,d) -> let p = (Map.find t paths) - (set[Map.find t tm])
-                                                       if Set.isEmpty (Set.intersect p startLocations) then Set.add t s else s) Set.empty trains
-
-        let priorities,y = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) && not (Set.contains k openPathTrains) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,c+1) tm
-
-
-        let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,y+1) tm
-        *)
-
-        Console.WriteLine(sprintf "%A" (priorities))
 
         trains, rwgLeft, rwgRight, goal, distanceMapLeft, distanceMapRight, paths, sr, priorities, x, sm,  S(0,sm,tm,rm,N)
