@@ -56,6 +56,8 @@
     <None Include="CopenhagenRealistic.txt" />
     <None Include="CopenhagenSwap.txt" />
     <None Include="CopenhagenRush.txt" />
+    <None Include="FirstTest.txt" />
+    <None Include="SecondTest.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>

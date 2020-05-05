@@ -16,7 +16,7 @@ let GameOver s =
     | _ -> failwith "GAMEOVER"
 
 
-let filename = "CopenhagenRealistic"
+let filename = "SecondTest"
 
 let rn = LoadRailway (filename + ".txt")
 
