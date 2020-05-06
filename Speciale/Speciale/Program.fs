@@ -16,7 +16,7 @@ let GameOver s =
     | _ -> failwith "GAMEOVER"
 
 
-let filename = "SecondTest"
+let filename = "CopenhagenAgain"
 
 let rn = LoadRailway (filename + ".txt")
 
@@ -32,18 +32,26 @@ let PrintTrains s =
 
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong GameOver") else ()) (List.rev result)
-type B = T | F
+
 
 let solutionSequence (sol:State list) =
         let template = "<trains>{0}\n<signals>{1}\n<rails>{2}"
 
 
-        let locs m = List.rev (Map.fold (fun s k v -> v::s) [] m)
-        let bLocs m = List.rev (Map.fold (fun s k v -> if v then T::s else F::s) [] m)
+        let locs m = let s = seq{
+                                  for x in Map.values m do
+                                      yield (string x)
+                              }
+                     String.concat ";" (s)
+        let bLocs m = let s = seq{
+                                  for x in Map.values m do
+                                      yield if x then "T" else "F" 
+                              }
+                      String.concat ";" ( s)
 
         let row (s) =
             match s with
-            | S(_,sm,tm,rm,_) -> sprintf "<>\n<trains>%A\n<signals>%A\n<rails>%A\n</>"  (locs tm) (bLocs sm) (bLocs rm)
+            | S(_,sm,tm,rm,_) -> sprintf "<>\n<trains>[%s]\n<signals>[%s]\n<rails>[%s]\n</>"  (locs tm) (bLocs sm) (bLocs rm)
             | _ -> failwith "F"
 
         seq {
