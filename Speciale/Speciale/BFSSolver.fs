@@ -57,7 +57,9 @@ module BestFirst =
         let ReachableLocations (t:Train) (d:Direction) (sm:SignalMap) (tm:TrainMap) (rm:SwitchRailMap) = 
             let l = Map.find t tm
             let rec Locations (ls:Set<Location>) = 
-                let nls = Set.fold (fun s p -> Set.union (List.fold (fun st va -> Set.add va st) Set.empty (NextPosition p d sm rm)) s) ls ls
+                let nls = Set.fold (fun s p -> let y = (NextPosition p d sm rm)
+                                               let x = (List.fold (fun st va -> Set.add va st) Set.empty y)
+                                               Set.union x s) ls ls
                 match ls = nls with
                 | true -> ls
                 | _ -> Locations nls
@@ -76,12 +78,20 @@ module BestFirst =
         let IsSafeState (s:State) =
             match s with
             | S(_,sm,tm,rm,_) -> // Checks if trains can reach other or can go off path, if true state is not safe
-                                    List.forall (fun (t,d) -> let rl = ReachableLocations t d sm tm rm
-                                                              let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
+                                 // TODO : Check if train can reach other trains reachable locations aswell
+                                 let arl = List.fold (fun s (t,d) -> Map.add t (ReachableLocations t d sm tm rm) s) Map.empty Trains
+                                 List.forall (fun (t,d) -> let rl = Map.find t arl
+                                                           let rls = Map.fold (fun s k v -> if k = t 
+                                                                                            then 
+                                                                                                s
+                                                                                            else 
+                                                                                                Set.union s v) Set.empty arl
                                                               //Should not be able to reach another train
-                                                              Set.intersect rl tloc = Set.empty &&
+                                                           let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
+                                                           let locs = Set.union rls tloc
+                                                           Set.intersect rl locs = Set.empty &&
                                                               // Should not be able to reach location not on path
-                                                              Set.difference rl (Map.find t Paths) = Set.empty) Trains
+                                                           Set.difference rl (Map.find t Paths) = Set.empty) Trains
             | _ -> failwith "IsSafeState N"
 
 
@@ -107,6 +117,7 @@ module BestFirst =
             if not (Set.contains h generatedStates)
             then unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
                  generatedStates <- Set.add h generatedStates
+                 if (Set.count generatedStates % 1000 = 0) then Console.WriteLine (sprintf "%A" (Set.count generatedStates))
                  true
             else false
 
@@ -120,7 +131,6 @@ module BestFirst =
 
 
         // Creates the control program from a state by backtracking the states
-        // TODO : Should return a Map<Train*Location list, SignalMap*SwitchRailMap> or save it smart way in file
         let rec ToControlProgram s = 
             match s with
             |S(_,sm,tm,rm,x) when x <> N -> s::ToControlProgram x
@@ -185,7 +195,10 @@ module BestFirst =
                                                                                             let nS = S(h,nSm,tm,rm,s)
                                                                                             if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSigs
                                                             // Find switchrails near picked trains 
-                                                            let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty tSigs
+                                                            let td = Set.fold (fun s t -> match List.tryFind (fun (t1,d1) -> t1 = t) Trains with
+                                                                                          | Some(_,d) -> (Map.find t tm,d)::s
+                                                                                          | _ -> s ) [] tp
+                                                            let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty td
                                                             // Create new states one for each switchrail change
                                                             let s2 = Set.fold (fun sx (sr,sg) -> let nRm = SwitchRail sr rm
                                                                                                  let locs = (getSwitchRailLocation sr nRm)
@@ -201,7 +214,10 @@ module BestFirst =
                                                                                                                let nS = S(h,nSm,tm,rm,s)
                                                                                                                if AddNewState nS Controller locs then Set.add nS sx else sx) Set.empty tSigs
                                                                                // Find switchrails near picked trains 
-                                                                               let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty tSigs
+                                                                               let td = Set.fold (fun s t -> match List.tryFind (fun (t1,d1) -> t1 = t) Trains with
+                                                                                                             | Some(_,d) -> (Map.find t tm,d)::s
+                                                                                                             | _ -> s ) [] tp
+                                                                               let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty td
                                                                                // Create new states one for each switchrail change
                                                                                let s2 = Set.fold (fun sx (sr,sg) -> let nRm = SwitchRail sr rm
                                                                                                                     let locs = (getSwitchRailLocation sr nRm)
@@ -243,7 +259,7 @@ module BestFirst =
 
            and ConductorTurn (states:Set<State>) = 
             match Set.isEmpty states with
-            | true when PriorityQueue.isEmpty unexploredStatesController -> failwith "No more states to explore"
+            | true when PriorityQueue.isEmpty unexploredStatesController -> failwith ("No more states to explore " + string (Set.count generatedStates))
             | true -> ControllerTurn 0
             | _ -> let nStates = Set.fold (fun (s) v -> s + GenerateConductorStates v) (Set.empty) states
                    ConductorTurn nStates
