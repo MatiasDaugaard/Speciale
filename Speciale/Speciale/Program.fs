@@ -16,19 +16,13 @@ let GameOver s =
     | _ -> failwith "GAMEOVER"
 
 
-let filename = "LyngbyLessSignals"
+let filename = "LyngbyGUI"
 
 let rn = LoadRailway (filename + ".txt")
 
 let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 let result,x = (Solve rn)
 stopWatch.Stop()
-
-let PrintTrains s =
-    match s with
-    | S(_,_,tm,_,_) -> Console.WriteLine(sprintf "%A" (tm))
-    | _ -> failwith "TRAINS"
-
 
 Console.WriteLine (sprintf "Time spend in total : %A (ms)" (stopWatch.Elapsed.TotalMilliseconds))
 List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong GameOver") else ()) (List.rev result)
@@ -58,12 +52,17 @@ let solutionSequence (sol:State list) =
             yield "<solution>"
             for x in sol  do
                 yield row x
+            yield (sprintf "<states> %A" (List.length result))
+            yield (sprintf "<generated> %A" x)
+            yield (sprintf "<time> %A" (stopWatch.Elapsed.TotalMilliseconds))
             yield "</solution>"
         }
 
 
 let path = Path.Combine(__SOURCE_DIRECTORY__,(filename + ".sol"))
+
 File.WriteAllLines (path, solutionSequence (List.rev result)) |> ignore
+
 
 Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
 Console.WriteLine(sprintf "Generated states : %A" (x))
