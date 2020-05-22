@@ -48,6 +48,7 @@
     <Compile Include="Types.fs" />
     <Compile Include="Preprocessing.fs" />
     <Compile Include="LoadFile.fs" />
+    <Compile Include="SaveFile.fs" />
     <Compile Include="BFSSolver.fs" />
     <Compile Include="Program.fs" />
     <None Include="packages.config" />
