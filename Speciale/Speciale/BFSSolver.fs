@@ -8,9 +8,11 @@ open FSharpx.Collections
 module BestFirst =
 
     let Solve rn = 
-
+        let mutable time = 0.0
+        //let stopWatch = System.Diagnostics.Stopwatch.StartNew()
         let Trains, RWGLeft, RWGRight, Goal, DistanceMap, Paths, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
-
+        //stopWatch.Stop()
+        //time <- time + stopWatch.Elapsed.TotalMilliseconds
         // Function for hashing a state
         let hash s = 
             match s with
@@ -46,7 +48,7 @@ module BestFirst =
             List.fold (fun s v -> if CanMove (p,v) d sm rm then v::s else s) [] x
 
         // Changes a switchrail from up to down and reversed
-        let SwitchRail (sr:SwitchRail) (rm:SwitchRailMap) = 
+        let ChangeSwitchRail (sr:SwitchRail) (rm:SwitchRailMap) = 
             let b = Map.find sr rm
             Map.add sr (not b) rm
 
@@ -157,7 +159,29 @@ module BestFirst =
             | x::y::xs -> let r = Set.fold (fun s v -> Set.add (Set.add y v) (Set.add (Set.add x v) s)) Set.empty r
                           allCom r xs
             | _ -> failwith "F"
+        
+        //Function to open entire path for a train
+        let openPath t d (sm:SignalMap) (rm:SwitchRailMap) =
 
+            let ps = Map.find t Paths
+            let nSm = Set.fold (fun s v -> let sign = (v,d)
+                                           match Map.tryFindKey (fun k _ -> k=sign) sm with
+                                           | Some(x) -> Map.add x true s
+                                           | None -> s) sm ps
+            let nRm = Set.fold (fun s v -> let rwg = match d with
+                                                     | R -> RWGRight
+                                                     | L -> RWGLeft
+                                           let nps = Set.intersect (Set.ofList (Map.find v rwg)) ps
+                                           match Set.isEmpty nps with
+                                           | true -> s
+                                           | false -> let np = Set.minElement nps
+                                                      match CanMove (v,np) d nSm rm with
+                                                      | true -> s
+                                                      | false -> let sr = Map.find (v,np) SwitchRails
+                                                                 ChangeSwitchRail sr s) rm ps
+            
+            nSm,nRm
+        
         // The game
         let rec ControllerTurn _ =
             match PriorityQueue.isEmpty unexploredStatesController with
@@ -179,7 +203,8 @@ module BestFirst =
                                                                                    | _ -> s ) [] prioTs
                                                      let tls = List.fold (fun s (l,_) -> Set.add l s) Set.empty td
                                                      match Set.count prioTs with
-                                                     | x when x=1 || MaxPrio >= curPrio ->
+                                                     | x when MaxPrio >= curPrio ->
+                                                            
                                                             // Create new states. One for each signal in set being turned on
                                                             let s1 = List.fold (fun sx v -> let nSm = (Map.add (v) true SM)
                                                                                             let h = CalculateHeuristic tm 
@@ -191,7 +216,7 @@ module BestFirst =
                                                             let tSR = List.fold (fun s v -> Set.fold (fun sx vx -> Set.add (vx,v) sx) Set.empty (TrainToSwitchRail v) + s) Set.empty td
 
                                                             // Create new states one for each switchrail change
-                                                            let s2 = Set.fold (fun sx (sr,sg) -> let nRm = SwitchRail sr rm
+                                                            let s2 = Set.fold (fun sx (sr,sg) -> let nRm = ChangeSwitchRail sr rm
                                                                                                  let locs = (getSwitchRailLocation sr nRm)
                                                                                                  let b = not (Set.isEmpty (Set.intersect locs tls))
 
@@ -199,9 +224,21 @@ module BestFirst =
                                                                                                  let nSm = Map.add sg true SM
                                                                                                  let nS = S(h,nSm,tm,nRm,s)
                                                                                                  if b && AddNewState nS Controller then Set.add nS sx else sx) Set.empty tSR
+                                                            
                                                             ConductorTurn (s1+s2)
-                                                     
-                                                     | _ -> // Create one new states for all relevant signals being turned on
+
+                                                     | _ -> 
+                                                            let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
+                                                                                                        let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
+                                                                                                        openPath t d ssm srm) (SM,rm) prioTs
+                                                            let h = CalculateHeuristic tm
+                                                            let nS = S(h,nSm,tm,nRm,s)
+                                                            let s1 = if AddNewState nS Controller  then set [nS] else Set.empty
+
+
+                                                            ConductorTurn s1
+                                                        // Create one new states for all relevant signals being turned on
+                                                     (*
                                                         let nSm = List.fold (fun s v -> Map.add v true s) SM tSigs
                                                         let h = CalculateHeuristic tm 
                                                         let nS = S(h,nSm,tm,rm,s)
@@ -226,13 +263,16 @@ module BestFirst =
                                                             ConductorTurn (s1+s2)
                                                         else 
                                                             ConductorTurn s1
+                                                     *)
                                | _ -> failwith "ControllerTurn"
 
            and ConductorTurn (states:Set<State>) = 
             match Set.isEmpty states with
             | true when PriorityQueue.isEmpty unexploredStatesController -> failwith ("No more states to explore " + string (Set.count generatedStates))
             | true -> ControllerTurn 0
-            | _ -> let nStates = Set.fold (fun (s) v -> s + GenerateConductorStates v) (Set.empty) states
+            | _ -> 
+                   let nStates = Set.fold (fun (s) v -> s + GenerateConductorStates v) (Set.empty) states
+
                    ConductorTurn nStates
                    
                     
@@ -242,7 +282,7 @@ module BestFirst =
         unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
         let r = ControllerTurn 0
         let x = Set.count generatedStates
-        List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
+        //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
 
 
         (r,x)

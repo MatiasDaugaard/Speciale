@@ -193,8 +193,8 @@ module Preprocess =
         let rwgLeft = List.fold (fun s (l1,l2,l3,d) -> if d = L then addVertex (l1,l2) (addVertex (l1,l3) s) else addVertex (l2,l1) (addVertex (l3,l1) s)) rwgL srl
         let rwgRight = Map.fold (fun s l ll -> List.fold (fun ss loc -> Map.add loc (l::Map.find loc ss) ss) s ll) rwg rwgLeft
 
-        // Create the distance maps
-        let distanceMap = CreateDistanceMap ll rwgRight
+        // Create the distance map
+        let distanceMap = CreateDistanceMap ll rwgLeft
 
         // Find all locations on all paths from start to end location for all trains
         let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
@@ -214,26 +214,24 @@ module Preprocess =
         // Set of trains in swap cycles
         let swapCycles = FindSwapCycles tm gl
 
-        // Set of train in swap non-cycles
-        let nonCycles = Set.difference swappers (Set.fold (fun s v -> s + v) Set.empty swapCycles)
+
 
         // Calculate priorities of the trains in swap cycles
-        let swapCyclePrio,x = PrioritiesSwapCycle swapCycles goal paths ds distanceMap
-
-        // Calculate prioritues of trains in swap non-cycles
-        let prio = Set.fold (fun s t -> Map.add t (x+1) s) Map.empty nonCycles
-        let nonCyclePrio = CalculatePriorities Map.empty prio tm gl x
-
-        // Combine the swap cycle and non-cycle priorities
-        let priorities = Map.fold (fun s k v -> Map.add k v s) nonCyclePrio swapCyclePrio
+        let priorities,x = PrioritiesSwapCycle swapCycles goal paths ds distanceMap
 
         // Find the highest priority so far
         let c = Map.fold (fun s k v -> max s v) 0 priorities
 
-
         // TODO : Priority order is not yet perfect, trains move in way of swappers cannot solve it
-        
-        let ts = (Map.keySet tm) - swappers
+
+        // Set of train in swap non-cycles
+        let nonCycles = Set.difference swappers (Set.fold (fun s v -> s + v) Set.empty swapCycles)
+
+        let ts = (Map.keySet tm) - (swappers - nonCycles)
+
+
+
+
         let priorities,p = PriorityFun tm ts goal distinctPaths priorities (c+Set.count ts)
 
         let paths = Map.fold (fun s k v -> Map.add k (Set.fold (fun sx vx -> sx + vx) Set.empty v) s) Map.empty p
