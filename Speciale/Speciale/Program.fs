@@ -11,7 +11,7 @@ open System.IO
 let main args =
     printfn "Arguments passed to function : %A" args
 
-    let filename = Array.head args
+    //let filename = Array.head args
 
 
     let GameOver s =
@@ -22,7 +22,7 @@ let main args =
         | _ -> failwith "GAMEOVER"
 
 
-    //let filename = "LyngbyGUI"
+    let filename = "CopenhagenGUI"
 
     let rn = LoadRailway (filename + ".txt")
 

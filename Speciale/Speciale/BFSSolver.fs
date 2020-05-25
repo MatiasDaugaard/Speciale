@@ -9,7 +9,7 @@ module BestFirst =
 
     let Solve rn = 
 
-        let Trains, RWGLeft, RWGRight, Goal, DistanceMapLeft, DistanceMapRight, Paths, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
+        let Trains, RWGLeft, RWGRight, Goal, DistanceMap, Paths, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
 
         // Function for hashing a state
         let hash s = 
@@ -68,8 +68,7 @@ module BestFirst =
         // Checks if any trains can currently reach another train returns true if not or reachable location not on path
         let IsSafeState (s:State) =
             match s with
-            | S(_,sm,tm,rm,_) -> // Checks if trains can reach other or can go off path, if true state is not safe
-                                 // TODO : Check if train can reach other trains reachable locations aswell
+            | S(_,sm,tm,rm,_) -> // Checks if trains can reach other trains, can go off path or reach location reachable by other train, if true state is not safe
                                  let arl = List.fold (fun s (t,d) -> Map.add t (ReachableLocations t d sm tm rm) s) Map.empty Trains
                                  List.forall (fun (t,d) -> let rl = Map.find t arl
                                                            let rls = Map.fold (fun s k v -> if k = t 
@@ -91,10 +90,8 @@ module BestFirst =
             List.fold (fun s (t,d) -> let l = Map.find t tm
                                       let g = Map.find t Goal
                                       if l = g then s else
-                                      let dm = match d with
-                                               | L -> DistanceMapLeft
-                                               | R -> DistanceMapRight
-                                      s + ((Map.find t Priorities) * (Map.find (l,g) dm))
+
+                                      s + ((Map.find t Priorities) * (Map.find (l,g) DistanceMap))
                                       ) 0 Trains
                                       
 
