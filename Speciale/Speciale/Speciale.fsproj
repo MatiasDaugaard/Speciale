@@ -55,9 +55,6 @@
     <None Include="packages.config" />
     <None Include="Lyngby.txt" />
     <None Include="SignalTest.txt" />
-    <None Include="CopenhagenRealistic.txt" />
-    <None Include="CopenhagenSwap.txt" />
-    <None Include="CopenhagenRush.txt" />
     <None Include="CopenhagenGUI.txt" />
     <None Include="LyngbyGUI.txt" />
   </ItemGroup>
