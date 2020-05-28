@@ -2,11 +2,20 @@
 
 open System.IO
 open Railways.Types
-open FSharpx.Collections
+open Railways.Preprocess
 
 module SaveFiles = 
 
     let saveSolution sol t gs fn = 
+
+        let mapValues m = 
+            let l = Map.fold (fun s k v -> v::s) [] m
+            seq{
+                for x in List.rev l do
+                    yield x
+            }
+            
+
 
         let solutionSequence (sol:State list) =
                 let template = "<trains>{0}\n<signals>{1}\n<rails>{2}"
@@ -14,13 +23,13 @@ module SaveFiles =
 
                 let locs m = 
                     let s = seq{
-                                for x in Map.values m do
+                                for x in mapValues m do
                                     yield (string x)
                             }
                     String.concat ";" (s)
                 let bLocs m = 
                     let s = seq{
-                        for x in Map.values m do
+                        for x in mapValues m do
                             yield if x then "T" else "F" 
                             }
                     String.concat ";" ( s)

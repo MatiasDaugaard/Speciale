@@ -1,10 +1,14 @@
 ﻿namespace Railways
 
 open Railways.Types
-open FSharpx.Collections
-open System
 
 module Preprocess =
+
+    let valueSet m =
+        Map.fold (fun s _ v -> Set.add v s) Set.empty m
+
+    let keySet m =
+        Map.fold (fun s k _ -> Set.add k s) Set.empty m
 
     // Used for creating the railway graph
     let addVertex ((l1,l2):Rail) (m:RailwayGraph) = 
@@ -116,20 +120,20 @@ module Preprocess =
                                    (ll,sc+(Map.count gm))) (Map.empty,0) ts
                                    
     // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority
-    let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (paths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) =
+    let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (paths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) (swaps:Set<Train>) =
         match Set.isEmpty ts with
         | true  -> pm,paths
         | false -> // Find all trains the have an open path from start to goal, in current setup, and does not block trains by being in goal location
                    let freeTrain = Set.fold (fun s t -> let pathSet = Map.find t paths
                                                         //Location of the other trains
-                                                        let locs = (Set.remove (Map.find t curLoc) (Set.ofSeq (Map.values curLoc)))
+                                                        let locs = (Set.remove (Map.find t curLoc) (valueSet curLoc))
                                                         //Checks if given train has a path that does not intersect with location of other trains
                                                         match Set.exists (fun path -> Set.isEmpty (Set.intersect locs path)) pathSet with
                                                         | true -> //Checks if putting train in goal blocks other from being able to get to goal
                                                                   let g = Map.find t gs
                                                                   let allPaths = Set.fold (fun s v -> let ps = Map.find v paths
                                                                                                       let p = Set.fold (fun sx vx -> sx+vx) Set.empty ps
-                                                                                                      if v <> t then p+s else s) Set.empty ts
+                                                                                                      if v <> t then p+s else s) Set.empty (ts+swaps)
                                                                   match Set.contains g allPaths with
                                                                   | false -> Set.add t s
                                                                   | _ -> s
@@ -138,8 +142,8 @@ module Preprocess =
                    | true  -> pm,paths
                    | false -> //Finds lists of trains with open path, that have non crossing paths
                               let t = Set.fold (fun s v -> let pathSet = Map.find v paths
-                                                            
-                                                           let locs = (Set.remove (Map.find v curLoc) (Set.ofSeq (Map.values curLoc)))
+
+                                                           let locs = (Set.remove (Map.find v curLoc) (valueSet curLoc))
                                                            let p = Set.fold (fun sx vx -> if Set.isEmpty (Set.intersect locs vx) && (Set.count vx < Set.count sx || Set.isEmpty sx) then vx else sx) Set.empty pathSet
                                                            let (x,_) = Set.fold (fun (sx,xx) vx -> let px = Map.find vx paths
                                                                                                    let py = Set.fold (fun sz vz -> if Set.isEmpty (Set.intersect vz xx) && (Set.count vz < Set.count sz || Set.isEmpty sz) then vz else sz) Set.empty px
@@ -151,7 +155,7 @@ module Preprocess =
                               //Pick the list with the most trains
                               let bts = Set.fold (fun s v -> if List.length v > List.length s then v else s) [] t
                               //Update the path of the trains to the ones not crossing
-                              let paths,_ = List.fold (fun (s,sp) v -> let locs = (Set.remove (Map.find v curLoc) (Set.ofSeq (Map.values curLoc))) + sp
+                              let paths,_ = List.fold (fun (s,sp) v -> let locs = (Set.remove (Map.find v curLoc) (valueSet curLoc)) + sp
                                                                        let pathSet = Map.find v paths
                                                                        let p = Set.fold (fun sx vx -> if Set.isEmpty (Set.intersect locs vx) && (Set.count vx < Set.count sx || Set.isEmpty sx) then vx else sx) Set.empty pathSet
                                                                        (Map.add v (set [p]) s),sp+p) (paths,Set.empty) (List.rev bts)                           
@@ -163,8 +167,29 @@ module Preprocess =
                               let pm = List.fold (fun s v -> Map.add v c s) pm bts
                               let c = c - 1
 
-                              PriorityFun curLoc ts gs paths pm c
+                              PriorityFun curLoc ts gs paths pm c swaps
 
+    //Romves a path if it is not posible for train to use, due to other trains always blocking
+    let RemoveImpossiblePaths (paths:Map<Train,Set<Set<Location>>>) (tss:Set<Set<Train>>) =
+     let ts = Set.unionMany (Set.toSeq tss)
+     let x = Set.fold (fun s t -> let ps = Map.find t paths
+                                  let aps = Set.fold (fun sx vx -> match vx = t with
+                                                                   | true -> sx
+                                                                   | _ -> let p = Map.find vx paths
+                                                                          let sp = Set.fold (fun sy vy -> Set.union sy vy) Set.empty p
+                                                                          Set.add sp sx
+                                                     ) Set.empty ts
+                                  match Set.count ps with
+                                  | 1 -> s
+                                  | _ -> let nps = Set.fold (fun sx p  -> match Set.exists (fun vy -> Set.isSubset vy p) aps with
+                                                                          | true -> sx
+                                                                          | false -> Set.add p sx
+                                                            ) Set.empty ps
+                                         Map.add t nps s
+                      ) paths ts 
+     Map.fold (fun s k v -> Map.add k (Set.unionMany (Set.toSeq v)) s) Map.empty x
+        
+         
 
     // InitiateState creates the initial state given a railway network, and static global variables
     let InitiateState (ll,rl,srl,sl,tl) = 
@@ -197,7 +222,7 @@ module Preprocess =
         let distanceMap = CreateDistanceMap ll rwgLeft
 
         // Find all locations on all paths from start to end location for all trains
-        let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
+        //let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
         let distinctPaths = FindDistinctPaths tm goal trains rwgLeft rwgRight
         //UNCOMMENT TO CHECK DIFFERENCE BETWEEN FINDING DISTINCT PATHS AND NOT
         //let distinctPaths = Map.fold (fun s k v -> Map.add k (set [v]) s) Map.empty paths
@@ -214,30 +239,29 @@ module Preprocess =
         // Set of trains in swap cycles
         let swapCycles = FindSwapCycles tm gl
 
-
-
+        let paths = RemoveImpossiblePaths distinctPaths swapCycles
+        
         // Calculate priorities of the trains in swap cycles
         let priorities,x = PrioritiesSwapCycle swapCycles goal paths ds distanceMap
 
         // Find the highest priority so far
         let c = Map.fold (fun s k v -> max s v) 0 priorities
-
-        // TODO : Priority order is not yet perfect, trains move in way of swappers cannot solve it
+        
 
         // Set of train in swap non-cycles
         let nonCycles = Set.difference swappers (Set.fold (fun s v -> s + v) Set.empty swapCycles)
 
-        let ts = (Map.keySet tm) - (swappers - nonCycles)
+        let ts = (keySet tm) - (swappers - nonCycles)
 
 
-
-
-        let priorities,p = PriorityFun tm ts goal distinctPaths priorities (c+Set.count ts)
+        let priorities2,p = PriorityFun tm ts goal distinctPaths priorities (c+Set.count ts) (swappers-nonCycles)
 
         let paths = Map.fold (fun s k v -> Map.add k (Set.fold (fun sx vx -> sx + vx) Set.empty v) s) Map.empty p
 
-        let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities,c+1) tm
-        //Map.iter (fun k v -> Console.WriteLine() 
-        //                     Set.iter (fun v -> Set.iter (fun v -> Console.Write(sprintf " %A" (v))) v) v) p
-        //Console.WriteLine(sprintf "%A" priorities)
-        trains, rwgLeft, rwgRight, goal, distanceMap, paths, sr, priorities, x, sm,  S(0,sm,tm,rm,N)
+        let priorities,_ = Map.fold (fun (m,coun) k v -> if not (Map.containsKey k m) then (Map.add k coun m,coun+1) else (m,coun)) (priorities2,c+1) tm
+
+        //UNCOMMENT to see effect of priorities
+        //let priorities = Map.fold (fun s k v -> Map.add k 1 s) Map.empty priorities
+        //let c = 1
+
+        trains, rwgLeft, rwgRight, goal, distanceMap, paths, sr, priorities, c, sm,  S(0,sm,tm,rm,N)

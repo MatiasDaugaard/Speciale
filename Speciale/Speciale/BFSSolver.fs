@@ -3,16 +3,18 @@
 open System
 open Railways.Types
 open Railways.Preprocess
-open FSharpx.Collections
+open Railways.PriorityQueue
+//open FSharpx.Collections
 
 module BestFirst =
 
+    
+
     let Solve rn = 
-        let mutable time = 0.0
-        //let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+        
+
         let Trains, RWGLeft, RWGRight, Goal, DistanceMap, Paths, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
-        //stopWatch.Stop()
-        //time <- time + stopWatch.Elapsed.TotalMilliseconds
+
         // Function for hashing a state
         let hash s = 
             match s with
@@ -79,7 +81,7 @@ module BestFirst =
                                                                                             else 
                                                                                                 Set.union s v) Set.empty arl
                                                               //Should not be able to reach another train
-                                                           let tloc = Set.remove (Map.find t tm) (Set.ofSeq (Map.values tm))
+                                                           let tloc = Set.remove (Map.find t tm) (Preprocess.valueSet tm)
                                                            let locs = Set.union rls tloc
                                                            Set.intersect rl locs = Set.empty &&
                                                               // Should not be able to reach location not on path
@@ -98,7 +100,8 @@ module BestFirst =
                                       
 
         // Datastructure used to keep track of visited and non visited states
-        let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
+        let mutable unexploredStatesController:PriorityQueue = Q([])
+        //let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
         let mutable generatedStates:Set<StateID> = Set.empty
 
         // Add state to the queues if it has not been added before
@@ -228,6 +231,7 @@ module BestFirst =
                                                             ConductorTurn (s1+s2)
 
                                                      | _ -> 
+                                                            
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
                                                                                                         openPath t d ssm srm) (SM,rm) prioTs
@@ -280,6 +284,7 @@ module BestFirst =
         
 
         unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
+        AddNewState s Conductor |> ignore
         let r = ControllerTurn 0
         let x = Set.count generatedStates
         //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r

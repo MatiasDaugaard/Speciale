@@ -1,9 +1,9 @@
 ﻿open System
-open FSharpx.Collections
 open Railways.Types
 open Railways.BestFirst
 open Railways.LoadFiles
 open Railways.SaveFiles
+open Railways.Preprocess
 open System.IO
 
 
@@ -11,20 +11,29 @@ open System.IO
 let main args =
     printfn "Arguments passed to function : %A" args
 
-    //let filename = Array.head args
+    //cd Documents/Speciale/Speciale/Speciale/Speciale
+    //fsharpc Types.fs Preprocessing.fs LoadFile.fs SaveFile.fs PriorityQueue.fs BFSSolver.fs Program.fs
+    //mono Program.exe filename
 
+    //TODO : Check if files exists
+    let filename = match Array.tryHead args with
+                   | Some(n) -> n
+                   | None -> Console.WriteLine (sprintf "No filename entered")
+                             "CopenhagenGUI"
+
+    
 
     let GameOver s =
         match s with
-        | S(_,_,tm,_,_) -> let locs1 = Map.values tm
+        | S(_,_,tm,_,_) -> let locs1 = valueSet tm
                            let locs2 = Set.ofSeq locs1
                            Seq.length locs1 <> Set.count locs2
-        | _ -> failwith "GAMEOVER"
+        | _ -> failwith "GAMEOVER"  
 
-
-    let filename = "CopenhagenGUI"
-
-    let rn = LoadRailway (filename + ".txt")
+    let rn = try 
+                 LoadRailway (filename + ".txt")
+             with
+                 | _ -> ([],[],[],[],[])
 
     let stopWatch = System.Diagnostics.Stopwatch.StartNew()
 

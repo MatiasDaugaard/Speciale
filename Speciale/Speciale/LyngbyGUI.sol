@@ -270,6 +270,6 @@
 <rails>[T;F;F;T;T;F]
 </>
 <states> 54
-<generated> 130
-<time> 159.6414
+<generated> 131
+<time> 129.8108
 </solution>
