@@ -113,14 +113,20 @@ module Preprocess =
         Set.fold (fun s v -> s + Map.find (v,g) dm) 0 ps
 
     // Calculates the priority of all swap cycles in the network
+    // TODO : Look at this
     let PrioritiesSwapCycle (ts:Set<Set<Train>>) (gm:TrainMap) (paths:Map<Train,Set<Location>>) (ds:Map<Train,Direction>) (dm:DistanceMap) =
         Set.fold (fun (sm,sc) v -> let l = Set.fold (fun sx t -> (PathDistance (Map.find t gm) (Map.find t paths) dm,t)::sx) [] v
-                                   let sl = List.sortDescending l
+                                   //let l = Set.fold (fun sx t -> (Set.count (Map.find t paths),t)::sx) [] v
+                                   let sl = (List.sortDescending l)
                                    let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
                                    (ll,sc+(Map.count gm))) (Map.empty,0) ts
-                                   
+
+    let LocationIsSafe l (ts:Set<Train>) (paths:Map<Train,Set<Set<Location>>>) =
+        Set.forall (fun v -> let ps = Map.find v paths
+                             Set.exists (fun ls -> not (Set.contains l ls)) ps) ts
+
     // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority
-    let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (paths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) (swaps:Set<Train>) =
+    let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (paths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) =
         match Set.isEmpty ts with
         | true  -> pm,paths
         | false -> // Find all trains the have an open path from start to goal, in current setup, and does not block trains by being in goal location
@@ -130,12 +136,15 @@ module Preprocess =
                                                         //Checks if given train has a path that does not intersect with location of other trains
                                                         match Set.exists (fun path -> Set.isEmpty (Set.intersect locs path)) pathSet with
                                                         | true -> //Checks if putting train in goal blocks other from being able to get to goal
+                                                                  //TODO : Fix cuase broken
                                                                   let g = Map.find t gs
+                                                                  (*
                                                                   let allPaths = Set.fold (fun s v -> let ps = Map.find v paths
                                                                                                       let p = Set.fold (fun sx vx -> sx+vx) Set.empty ps
                                                                                                       if v <> t then p+s else s) Set.empty (ts+swaps)
-                                                                  match Set.contains g allPaths with
-                                                                  | false -> Set.add t s
+                                                                  *)
+                                                                  match LocationIsSafe g (Set.remove t ts) paths with
+                                                                  | true -> Set.add t s
                                                                   | _ -> s
                                                         | _ -> s) Set.empty ts
                    match Set.isEmpty freeTrain with
@@ -167,35 +176,24 @@ module Preprocess =
                               let pm = List.fold (fun s v -> Map.add v c s) pm bts
                               let c = c - 1
 
-                              PriorityFun curLoc ts gs paths pm c swaps
+                              PriorityFun curLoc ts gs paths pm c 
                               
 
-    let PathIsUsable (t:Train) (ls:Set<Location>) (paths:Map<Train,Set<Set<Location>>>) = 
-        let ps = Map.find t paths
-        Set.exists (fun v -> not (Set.isSubset v ls)) ps
+    
 
-    let rec SwapperPaths priomap swappers paths =
-        if Map.count priomap <> 0
-        then 
-            let maxP = Map.fold (fun s k v -> max s v) 0 priomap
-            let t = Map.findKey (fun k v -> v = maxP && Set.contains k swappers) priomap
-            let swaps = Set.remove t swappers
-            let ps = Map.find t paths
-            match Set.count ps with
-            | 1 -> SwapperPaths (Map.remove t priomap) (swappers) (Map.add t (Set.minElement (set[ps])) paths)
-            | _ -> let gp = Set.fold (fun s v -> match Set.forall (fun t -> PathIsUsable t v paths) swaps with
-                                                 | true -> Set.add v s
-                                                 | _ -> s
-                                     ) Set.empty ps
-                   match Set.count gp with
-                   | 0 -> failwith "Appearantly train has no usable paths oops"
-                   | 1 -> SwapperPaths (Map.remove t priomap) (swappers) (Map.add t gp paths)
-                   | _ -> let bp = Set.fold (fun s v -> if Set.count v < Set.count s then v else s) (Set.maxElement gp) gp
-                          SwapperPaths (Map.remove t priomap) (swappers) (Map.add t (set[bp]) paths)
-        else 
-            Map.fold (fun s k v -> Map.add k (Set.unionMany (Set.toSeq v)) s) Map.empty paths
-
-
+    let FindSafeTrain (ts:Set<Train>) (paths:Map<Train,Set<Set<Location>>>) dm tm sm td =
+        let safeZone = Set.fold (fun s v -> let locs = Set.unionMany (Map.find v paths)
+                                            let sls = Set.fold (fun ss l -> match LocationIsSafe l (Set.remove v ts) paths with
+                                                                            | true -> Set.add (v,l) ss
+                                                                            | _ -> ss) Set.empty locs
+                                            Set.union s sls
+                                ) Set.empty ts
+        Set.fold (fun (d,tr,loc) (t,l) -> let dis = Map.find (l,Map.find t tm) dm
+                                          let dir = Map.find t td
+                                          match dis < d && (Map.containsKey (l,dir) sm)with
+                                          | true -> (dis,t,l)
+                                          | _ -> (d,tr,loc)
+                 ) (1000,"",0) safeZone
 
 
 
@@ -245,37 +243,37 @@ module Preprocess =
 
         // Set of trains in swap cycles
         let swapCycles = FindSwapCycles tm gl
-        
-        // Calculate priorities of the trains in swap cycles
-        let priorities,x = PrioritiesSwapCycle swapCycles goal paths ds distanceMap
-        
-        // Find the highest priority so far
-        let c = Map.fold (fun s k v -> max s v) 0 priorities
-        
-        // Set of train in swap non-cycles
-        let nonCycles = Set.difference swappers (Set.fold (fun s v -> s + v) Set.empty swapCycles)
 
-        // Set of trains not part of swap cycles
-        let ts = (keySet tm) - (swappers - nonCycles)
+        //TODO : Work for more swap cycles and also not crash for networks without swap cycles
+        let goals,dPaths,fp = if not (Set.isEmpty swapCycles) 
+                                then 
+                                    let (_,t,l) = FindSafeTrain (Set.minElement swapCycles) distinctPaths distanceMap tm sm ds
+                                    let goals = [goal]
+                                    let goal = Map.add t l goal
+                                    //TODO : Fix the below to look nice
+                                    let gs = (goal::goals)
+                                    let dp = FindDistinctPaths tm goal trains rwgLeft rwgRight
+                                    let fp = Map.fold (fun s k v -> Map.add k (Set.unionMany (v)) s) Map.empty distinctPaths
+                                    let fp1 = Map.add t (Set.difference (Map.find t fp) (Set.unionMany (Map.find t dp))) fp
+                                    let fp2 = Map.add t (Set.add l (Map.find t fp1)) fp1
+                                    gs,dp,[fp2]
+                                else
+                                    [goal],distinctPaths,[]
 
-        // Distinct path for only the swap cycle trains
-        let swappersDistinctPaths = Set.fold (fun s v -> Map.remove v s) distinctPaths ts
+        let ts = (keySet tm)
 
-        // Finding exact paths for swap cycles trains
-        let swapPaths = SwapperPaths priorities (Set.unionMany (Set.toSeq swapCycles)) swappersDistinctPaths
-
+        let goalFinal = List.head goals
         // Finding priority and exact path for train not part of swap cycles
-        let priorities,p = PriorityFun tm ts goal distinctPaths priorities (c+Set.count ts) (swappers-nonCycles)
-        let exactPaths = Map.fold (fun s k v -> Map.add k (Set.unionMany (Set.toSeq v)) s) Map.empty p
-
-        // Adding exact path for trains part of swap cycles
-        let finalPaths = Map.fold (fun s k v -> Map.add k v s) exactPaths swapPaths
+        let priorities,p = PriorityFun tm ts goalFinal dPaths Map.empty (Set.count ts)
+        let finalPaths = Map.fold (fun s k v -> Map.add k (Set.unionMany (v)) s) Map.empty p
+        //TODO : One distinct path for selected train t
+        let finalPathss = finalPaths::fp
 
         //Setting priority of trains with no open path to highest swapper
-        let finalPriorities = Map.fold (fun m k v -> if not (Map.containsKey k m) then (Map.add k c m) else m) priorities tm
+        let finalPriorities = Map.fold (fun m k v -> if not (Map.containsKey k m) then (Map.add k 0 m) else m) priorities tm
 
         //UNCOMMENT to see effect of priorities
         //let finalPriorities = Map.fold (fun s k v -> Map.add k 1 s) Map.empty priorities
         //let c = 1
 
-        trains, rwgLeft, rwgRight, goal, distanceMap, finalPaths, sr, finalPriorities, c, sm,  S(0,sm,tm,rm,N)
+        trains, rwgLeft, rwgRight, goals, distanceMap, finalPathss, sr, finalPriorities, 0, sm,  S(0,sm,tm,rm,N)

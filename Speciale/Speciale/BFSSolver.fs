@@ -13,18 +13,38 @@ module BestFirst =
     let Solve rn = 
         
 
-        let Trains, RWGLeft, RWGRight, Goal, DistanceMap, Paths, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
-
+        let Trains, RWGLeft, RWGRight, Goals, DistanceMap, Pathss, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
+        let mutable Goal = List.head Goals
+        let mutable Paths = List.head Pathss
+        // Datastructure used to keep track of visited and non visited states
+        let mutable unexploredStatesController:PriorityQueue = Q([])
+        //let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
+        let mutable generatedStates:Set<StateID> = Set.empty
         // Function for hashing a state
         let hash s = 
             match s with
             | S(_,sm,tm,rm,_) -> Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
             | _ -> failwith "Cannot hash N"    
 
+        let rec NextGoal g gl =
+            match gl with
+            | [] -> failwith "F"
+            | x::xs when x = g -> List.head xs
+            | _::xs -> NextGoal g xs
+
         // Checks if all trains are in their goal positions if so returns true
         let IsSolved (s:State) =  
             match s with
-            | S(_,_,tm,_,_) -> Map.forall (fun t l -> Map.find t tm = l) Goal
+            | S(_,_,tm,_,_) -> match Map.forall (fun t l -> Map.find t tm = l) Goal with
+                               | true -> if List.last Goals = Goal 
+                                         then 
+                                             true 
+                                         else 
+                                             Goal <- NextGoal Goal Goals
+                                             Paths <- NextGoal Paths Pathss
+                                             unexploredStatesController <- Q([s])
+                                             false
+                               | false -> false
             | _ -> failwith "IsSolved N"
 
         // Checks if it is posible to move from l1 to l2 in current state
@@ -99,10 +119,7 @@ module BestFirst =
                                       ) 0 Trains
                                       
 
-        // Datastructure used to keep track of visited and non visited states
-        let mutable unexploredStatesController:PriorityQueue = Q([])
-        //let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
-        let mutable generatedStates:Set<StateID> = Set.empty
+        
 
         // Add state to the queues if it has not been added before
         let AddState s h = 
@@ -169,8 +186,8 @@ module BestFirst =
             let ps = Map.find t Paths
             let nSm = Set.fold (fun s v -> let sign = (v,d)
                                            match Map.tryFindKey (fun k _ -> k=sign) sm with
-                                           | Some(x) -> Map.add x true s
-                                           | None -> s) sm ps
+                                           | Some(x) when fst x <> Map.find t Goal ->  Map.add x true s
+                                           | _ -> s) sm ps
             let nRm = Set.fold (fun s v -> let rwg = match d with
                                                      | R -> RWGRight
                                                      | L -> RWGLeft
@@ -197,7 +214,7 @@ module BestFirst =
                                | S(x,_,tm,rm,_) ->   // Find the highest priority of train not yet in goal
                                                      let curPrio = Map.fold (fun s k v -> if Map.find k tm <> Map.find k Goal then max s v else s) 0 Priorities
                                                      // Pick train with just found priority, or if lower than swappriority pick all remaining trains
-                                                     let prioTs = if MaxPrio >= curPrio then List.fold (fun s (t,_) -> Set.add t s) Set.empty Trains else Map.fold (fun s k v -> if v = curPrio then Set.add k s else s) Set.empty Priorities
+                                                     let prioTs = if MaxPrio >= curPrio then List.fold (fun s (t,_) -> if Map.find t tm <> Map.find t Goal then Set.add t s else s) Set.empty Trains else Map.fold (fun s k v -> if v = curPrio then Set.add k s else s) Set.empty Priorities
                                                      // Find signals near all picked trains
                                                      let tSigs = List.fold (fun s (t,d) -> if ((Set.contains t prioTs) && (Map.containsKey (Map.find t tm,d) SM)) then (Map.find t tm,d)::s else s) [] Trains
                                                      //Find location and direction of picked trains

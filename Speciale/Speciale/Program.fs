@@ -19,7 +19,7 @@ let main args =
     let filename = match Array.tryHead args with
                    | Some(n) -> n
                    | None -> Console.WriteLine (sprintf "No filename entered")
-                             "CopenhagenGUI"
+                             "SWAP"
 
     
 
@@ -36,7 +36,7 @@ let main args =
                  | _ -> ([],[],[],[],[])
 
     let stopWatch = System.Diagnostics.Stopwatch.StartNew()
-
+    //Solve rn
     let result,gs = try
                         Solve rn
                     with
