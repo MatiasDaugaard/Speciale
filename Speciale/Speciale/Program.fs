@@ -19,7 +19,7 @@ let main args =
     let filename = match Array.tryHead args with
                    | Some(n) -> n
                    | None -> Console.WriteLine (sprintf "No filename entered")
-                             "SWAP"
+                             "CopenhagenGUI"
 
     
 
