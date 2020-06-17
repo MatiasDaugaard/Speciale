@@ -58,8 +58,8 @@
     <None Include="CopenhagenGUI.txt" />
     <None Include="LyngbyGUI.txt" />
     <None Include="CopenhagenSWAP.txt" />
-    <None Include="LongSwap.txt" />
     <None Include="SWAP.txt" />
+    <None Include="CopenhagenBroken.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>
