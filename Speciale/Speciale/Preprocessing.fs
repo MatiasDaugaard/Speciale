@@ -121,6 +121,35 @@ module Preprocess =
                                    let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
                                    (ll,sc+(Map.count gm))) (Map.empty,0) ts
 
+    // Function returning shortest path based on length an fewest switchrail switches
+    let shortestPath ps locs = 
+
+
+        let shortest p1 p2 = 
+            match Set.isEmpty p1, Set.isEmpty p2 with
+            | true,_ -> p2
+            | _,true -> p1
+            | _ -> let rec jumpCount l c = 
+                       match l with
+                       | [] -> c
+                       | [x] -> c
+                       | x::(y::rest) -> if abs (x-y) = 1 then jumpCount (y::rest) c else jumpCount (y::rest) (c+1)
+                   let sp1 = List.sort (Set.toList p1)
+                   let l1 = Set.count p1 + jumpCount sp1 0
+                   let sp2 = List.sort (Set.toList p2)
+                   let l2 = Set.count p2 + jumpCount sp2 0
+                   if l1 <= l2 then p1 else p2
+
+        let rec bestPath ps bp =
+            match ps with
+            | [] -> bp
+            | x::xs when Set.isEmpty (Set.intersect locs x) -> bestPath xs (shortest bp x)
+            | _::xs -> bestPath xs bp
+
+        bestPath (Set.toList ps) Set.empty
+        
+
+    // Function returning if given location is safe, meaning all other trains have a path if something would block the location
     let LocationIsSafe l (ts:Set<Train>) (paths:Map<Train,Set<Set<Location>>>) =
         Set.forall (fun v -> let ps = Map.find v paths
                              Set.exists (fun ls -> not (Set.contains l ls)) ps) ts
@@ -148,8 +177,7 @@ module Preprocess =
                                                            // Location of other trains
                                                            let locs = (Set.remove (Map.find v curLoc) (valueSet curLoc))
                                                            // Find shortest paths that does not cross any other trains current position
-                                                           // TODO : Define shortes as fewest swithrails
-                                                           let p = Set.fold (fun sx vx -> if Set.isEmpty (Set.intersect locs vx) && (Set.count vx < Set.count sx || Set.isEmpty sx) then vx else sx) Set.empty pathSet
+                                                           let p = shortestPath pathSet locs
                                                            // Finds free trains that have non crossing paths with train
                                                            let (x,_) = Set.fold (fun (sx,xx) vx -> let px = Map.find vx fPaths
                                                                                                    let gls = List.fold (fun s v -> Set.add (Map.find v gs) s) Set.empty (vx::sx)
@@ -166,6 +194,7 @@ module Preprocess =
                                                ) Set.empty freeTrain
                               //Pick the list with the most trains
                               let bts = Set.fold (fun s v -> if List.length v > List.length s then v else s) [] t
+                              // If bts is empty return
                               if List.isEmpty bts 
                               then pm,fPaths
                               else 
@@ -173,7 +202,7 @@ module Preprocess =
                               //Update the path of the trains to the ones not crossing
                               let fPaths,_ = List.fold (fun (s,sp) v -> let locs = (Set.remove (Map.find v curLoc) (valueSet curLoc)) + sp
                                                                         let pathSet = Map.find v fPaths
-                                                                        let p = Set.fold (fun sx vx -> if Set.isEmpty (Set.intersect locs vx) && (Set.count vx < Set.count sx || Set.isEmpty sx) then vx else sx) Set.empty pathSet
+                                                                        let p = shortestPath pathSet locs
                                                                         (Map.add v (set [p]) s),sp+p) (fPaths,Set.empty) (List.rev bts) 
                               //Remove these paths from the comPaths
                               let comPaths = List.fold (fun s v -> let pss = Map.find v s

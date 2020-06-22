@@ -134,7 +134,7 @@ module BestFirst =
         let AddNewState (s:State) t = 
             let h = hash s
             match t with
-            | Conductor -> AddState s h                   
+            | Conductor -> AddState s h                 
             | Controller when (IsSafeState s)  -> AddState s h
             | _ -> false
 
