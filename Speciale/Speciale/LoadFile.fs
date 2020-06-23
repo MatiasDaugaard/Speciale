@@ -35,9 +35,9 @@ module LoadFiles =
 
 
 
-    let LoadRailway f : RailwayNetwork = 
+    let LoadRailway f directoryPath : RailwayNetwork = 
 
-        let path = Path.Combine(__SOURCE_DIRECTORY__,f)
+        let path = Path.Combine(directoryPath,f)
         let lines = List.ofArray (File.ReadAllLines(path))
 
         let rec ExtractLocations l r =

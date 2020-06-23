@@ -636,5 +636,5 @@
 </>
 <states> 127
 <generated> 127
-<time> 350.0263
+<time> 311.01
 </solution>

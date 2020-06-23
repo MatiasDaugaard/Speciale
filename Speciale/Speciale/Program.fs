@@ -13,15 +13,20 @@ let main args =
 
     //cd Documents/Speciale/Speciale/Speciale/Speciale
     //fsharpc Types.fs Preprocessing.fs LoadFile.fs SaveFile.fs PriorityQueue.fs BFSSolver.fs Program.fs
-    //mono Program.exe filename
+    //mono Program.exe filename directory
+    // directory : /Users/matias/Documents/Eclipse/SpecialeGUI
+    //             /Users/matias/Documents/Speciale/Speciale/Speciale/Speciale
 
     //TODO : Check if files exists
     let filename = match Array.tryHead args with
                    | Some(n) -> n
                    | None -> Console.WriteLine (sprintf "No filename entered")
-                             "CopenhagenBroken"
+                             "LyngbySolve"
 
-    
+    let path = match Array.tryItem 1 args with
+                   | Some(n) -> n
+                   | None -> Console.WriteLine (sprintf "No directory entered")
+                             __SOURCE_DIRECTORY__
 
     let GameOver s =
         match s with
@@ -31,27 +36,26 @@ let main args =
         | _ -> failwith "GAMEOVER"  
 
     let rn = try 
-                 LoadRailway (filename + ".txt")
+                 LoadRailway (filename + ".txt") path
              with
                  | _ -> ([],[],[],[],[])
 
-    let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+    
     //Solve rn
-    let result,gs = try
-                        Solve rn
-                    with
-                    | _ -> ([],0)
+    let result,gs,pretime,solvetime = try
+                                        Solve rn
+                                      with
+                                      | _ -> ([],0,0.0,0.0)
 
 
-    stopWatch.Stop()
-
-    let time = stopWatch.Elapsed.TotalMilliseconds
-
-    saveSolution result time gs filename
+    
+                             
+    saveSolution result (pretime+solvetime) gs filename path
 
     List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong GameOver") else ()) (List.rev result)
 
-    Console.WriteLine (sprintf "Time spend in total : %A (ms)" (time))
+    Console.WriteLine (sprintf "Time spend in preprocess : %A (ms)" (pretime))
+    Console.WriteLine (sprintf "Time spend in solving : %A (ms)" (solvetime))
     Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
     Console.WriteLine(sprintf "Generated states : %A" (gs))
 

@@ -60,6 +60,7 @@
     <None Include="CopenhagenSWAP.txt" />
     <None Include="SWAP.txt" />
     <None Include="CopenhagenBroken.txt" />
+    <None Include="LyngbySolve.txt" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>

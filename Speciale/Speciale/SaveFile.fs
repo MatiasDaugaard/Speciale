@@ -1,12 +1,13 @@
 ﻿namespace Railways
 
 open System.IO
+open System
 open Railways.Types
 open Railways.Preprocess
 
 module SaveFiles = 
 
-    let saveSolution sol t gs fn = 
+    let saveSolution sol t gs fn directoryPath = 
 
         let mapValues m = 
             let l = Map.fold (fun s k v -> v::s) [] m
@@ -50,6 +51,7 @@ module SaveFiles =
                 }
 
 
-        let path = Path.Combine(__SOURCE_DIRECTORY__,(fn + ".sol"))
+        let path = Path.Combine(directoryPath,(fn + ".sol"))
+        Console.WriteLine (sprintf "SourceDirectory %A" (path))
 
         File.WriteAllLines (path, solutionSequence (List.rev sol)) |> ignore

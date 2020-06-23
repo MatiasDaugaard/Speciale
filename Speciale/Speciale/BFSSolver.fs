@@ -11,15 +11,19 @@ module BestFirst =
     
 
     let Solve rn = 
-        
+        let stopWatchPre = System.Diagnostics.Stopwatch.StartNew()
 
         let Trains, RWGLeft, RWGRight, Goals, DistanceMap, Pathss, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
+
         let mutable Goal = List.head Goals
         let mutable Paths = List.head Pathss
         // Datastructure used to keep track of visited and non visited states
         let mutable unexploredStatesController:PriorityQueue = Q([])
         //let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
         let mutable generatedStates:Set<StateID> = Set.empty
+        stopWatchPre.Stop()
+        let pretime = stopWatchPre.Elapsed.TotalMilliseconds
+
         // Function for hashing a state
         let hash s = 
             match s with
@@ -298,15 +302,16 @@ module BestFirst =
                    
                     
 
-        
 
+        let stopWatchSolve = System.Diagnostics.Stopwatch.StartNew()
         unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
         AddNewState s Conductor |> ignore
         let r = ControllerTurn 0
         let x = Set.count generatedStates
+        stopWatchSolve.Stop()
         //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
+        let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds
 
-
-        (r,x)
+        (r,x,pretime,solvetime)
 
 

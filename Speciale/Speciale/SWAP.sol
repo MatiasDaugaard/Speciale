@@ -2231,5 +2231,5 @@
 </>
 <states> 446
 <generated> 446
-<time> 416.4737
+<time> 221.4035
 </solution>
