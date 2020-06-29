@@ -47,9 +47,10 @@ module Postprocess =
                                          OffSignals xs ys ep t d (ns::nsl)
 
 
+
     let TurnOffSignals sl t d = 
         //Find the path for the train
-        //TODO : Find other trains moving the same time and make sure they are the same length
+       
         let p = List.rev (List.fold (fun s v -> let l = GetTrainLocation v t
                                                 match s with
                                                 | [] -> [l]

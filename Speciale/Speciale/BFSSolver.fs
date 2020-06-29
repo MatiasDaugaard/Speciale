@@ -218,7 +218,9 @@ module BestFirst =
                                | S(x,_,tm,rm,_) ->   // Find the highest priority of train not yet in goal
                                                      let curPrio = Map.fold (fun s k v -> if Map.find k tm <> Map.find k Goal then max s v else s) 0 Priorities
                                                      // Pick train with just found priority, or if lower than swappriority pick all remaining trains
-                                                     let prioTs = if MaxPrio >= curPrio then List.fold (fun s (t,_) -> if Map.find t tm <> Map.find t Goal then Set.add t s else s) Set.empty Trains else Map.fold (fun s k v -> if v = curPrio then Set.add k s else s) Set.empty Priorities
+                                                     let prioTs = if MaxPrio >= curPrio 
+                                                                  then List.fold (fun s (t,_) -> if Map.find t tm <> Map.find t Goal then Set.add t s else s) Set.empty Trains 
+                                                                  else Map.fold (fun s k v -> if v = curPrio && Map.find k tm <> Map.find k Goal then Set.add k s else s) Set.empty Priorities
                                                      // Find signals near all picked trains
                                                      let tSigs = List.fold (fun s (t,d) -> if ((Set.contains t prioTs) && (Map.containsKey (Map.find t tm,d) SM)) then (Map.find t tm,d)::s else s) [] Trains
                                                      //Find location and direction of picked trains
@@ -251,8 +253,7 @@ module BestFirst =
                                                             
                                                             ConductorTurn (s1+s2)
 
-                                                     | _ -> 
-                                                            
+                                                     | _ -> //let prioTs1 = set [Set.minElement prioTs]
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
                                                                                                         openPath t d ssm srm) (SM,rm) prioTs
@@ -312,7 +313,7 @@ module BestFirst =
         //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
         let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds
 
-        let postresult = CombineSolution r Trains
+        let postresult = CombineSolution r Trains 
 
 
         (postresult,x,pretime,solvetime)
