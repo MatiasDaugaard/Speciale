@@ -38,7 +38,7 @@ module Preprocess =
 
     // Find all paths by taking intersection of reachable locations from starting location in train direction and the opposite direction from the goal location
     // NOT used anymore
-    (*
+    
     let FindPaths tm trains left right goal =
         let rec Path d s =
             let rwg = match d with
@@ -56,7 +56,7 @@ module Preprocess =
                                   let paths2 = Path a (set [gl])
                                   let paths = Set.intersect paths1 paths2
                                   Map.add t paths s) Map.empty trains
-    *)
+    
 
     //Finds all distinct paths for the trains, and saves them individually
     let FindDistinctPaths tm gm tdl rwgl rwgr = 
@@ -364,5 +364,11 @@ module Preprocess =
         let priorities = Map.fold (fun s k v -> if Map.containsKey k s then s else Map.add k v s) priorities x
         //TODO : No train should not have been given a priority, so if used some case not covered
         let finalPriorities = Map.fold (fun m k v -> if not (Map.containsKey k m) then (Map.add k 0 m) else m) priorities tm
+        //Uncomment to see solution without priorities
+        //let goals = [goalLast]
+        //let paths = FindPaths tm trains rwgLeft rwgRight goal
+        //let Paths = [paths]
+        //let finalPriorities = Map.fold (fun m k v -> Map.add k 0 m) Map.empty tm
+
 
         trains, rwgLeft, rwgRight, goals, distanceMap, Paths, sr, finalPriorities, 0, sm,  S(0,sm,tm,rm,N)

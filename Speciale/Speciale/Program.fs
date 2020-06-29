@@ -11,9 +11,10 @@ open System.IO
 let main args =
     printfn "Arguments passed to function : %A" args
 
-    //cd Documents/Speciale/Speciale/Speciale/Speciale
-    //fsharpc Types.fs Preprocessing.fs LoadFile.fs SaveFile.fs PriorityQueue.fs BFSSolver.fs Program.fs
-    //mono Program.exe filename directory
+    // Paste into terminal to compile to excutable and run
+    // cd Documents/Speciale/Speciale/Speciale/Speciale
+    // fsharpc Types.fs Preprocessing.fs LoadFile.fs SaveFile.fs PriorityQueue.fs Postprocess.fs BFSSolver.fs Program.fs
+    // mono Program.exe filename directory
     // directory : /Users/matias/Documents/Eclipse/SpecialeGUI
     //             /Users/matias/Documents/Speciale/Speciale/Speciale/Speciale
 
@@ -23,7 +24,7 @@ let main args =
                    | None -> Console.WriteLine (sprintf "No filename entered")
                              //"CombineStateTwoTrainsTest"
                              //"CombineStateTest2"
-                             "LyngbyGUI"
+                             "SWAP"
 
     let path = match Array.tryItem 1 args with
                    | Some(n) -> n
@@ -44,10 +45,10 @@ let main args =
 
 
     //Solve rn |> ignore
-    let result,gs,pretime,solvetime = try
-                                        Solve rn
-                                      with
-                                      | _ -> ([],0,0.0,0.0)
+    let result,gs,pretime,solvetime,posttime = try
+                                                   Solve rn
+                                               with
+                                               | _ -> ([],0,0.0,0.,0.0)
                                       
     
                              
@@ -57,6 +58,7 @@ let main args =
 
     Console.WriteLine (sprintf "Time spend in preprocess : %A (ms)" (pretime))
     Console.WriteLine (sprintf "Time spend in solving : %A (ms)" (solvetime))
+    Console.WriteLine (sprintf "Time spend in postprocess : %A (ms)" (posttime))
     Console.WriteLine(sprintf "Length of solution : %A" (List.length result))
     Console.WriteLine(sprintf "Generated states : %A" (gs))
 

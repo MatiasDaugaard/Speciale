@@ -322,9 +322,15 @@ module BestFirst =
         let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds
 
         //Only work for solution found using the opening of entire path function
-        let postresult = CombineSolutionEntirePath r Trains
+        // Used to time the postprocessing
+        let stopWatchPost = System.Diagnostics.Stopwatch.StartNew()
 
+        //let postresult = CombineSolutionEntirePath r Trains
 
-        (postresult,x,pretime,solvetime)
+        stopWatchPost.Stop()
+        let posttime = stopWatchPost.Elapsed.TotalMilliseconds
+
+        //(postresult,x,pretime,solvetime,posttime)
+        (r,x,pretime,solvetime,posttime)
 
 
