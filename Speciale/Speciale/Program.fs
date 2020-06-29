@@ -44,7 +44,7 @@ let main args =
                  | _ -> ([],[],[],[],[])
 
 
-    //Solve rn |> ignore
+    Solve rn |> ignore
     let result,gs,pretime,solvetime,posttime = try
                                                    Solve rn
                                                with

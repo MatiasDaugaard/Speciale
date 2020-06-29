@@ -325,12 +325,12 @@ module BestFirst =
         // Used to time the postprocessing
         let stopWatchPost = System.Diagnostics.Stopwatch.StartNew()
 
-        //let postresult = CombineSolutionEntirePath r Trains
+        let postresult = CombineSolutionEntirePath r Trains 
 
         stopWatchPost.Stop()
         let posttime = stopWatchPost.Elapsed.TotalMilliseconds
 
-        //(postresult,x,pretime,solvetime,posttime)
-        (r,x,pretime,solvetime,posttime)
+        (postresult,x,pretime,solvetime,posttime)
+        //(r,x,pretime,solvetime,posttime)
 
 
