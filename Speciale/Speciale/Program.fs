@@ -23,7 +23,7 @@ let main args =
                    | None -> Console.WriteLine (sprintf "No filename entered")
                              //"CombineStateTwoTrainsTest"
                              //"CombineStateTest2"
-                             "LyngbyGUI"
+                             "SWAP"
 
     let path = match Array.tryItem 1 args with
                    | Some(n) -> n
@@ -43,7 +43,7 @@ let main args =
                  | _ -> ([],[],[],[],[])
 
 
-    Solve rn
+    //Solve rn |> ignore
     let result,gs,pretime,solvetime = try
                                         Solve rn
                                       with

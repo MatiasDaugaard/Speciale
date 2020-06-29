@@ -253,7 +253,7 @@ module BestFirst =
                                                             
                                                             ConductorTurn (s1+s2)
 
-                                                     | _ -> //let prioTs1 = set [Set.minElement prioTs]
+                                                     | _ -> //let prioTs = set [Set.minElement prioTs]
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
                                                                                                         openPath t d ssm srm) (SM,rm) prioTs
@@ -313,7 +313,8 @@ module BestFirst =
         //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
         let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds
 
-        let postresult = CombineSolution r Trains 
+        //Only work for solution found using the opening of entire path function
+        let postresult = CombineSolutionEntirePath r Trains
 
 
         (postresult,x,pretime,solvetime)

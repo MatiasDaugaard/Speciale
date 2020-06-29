@@ -4,63 +4,59 @@ open Railways.Types
 
 module Postprocess =
 
+    // Gets the location of a given train in a given state
     let GetTrainLocation s t =
         match s with
         | S(_,sm,tm,rm,p) -> Map.find t tm
         | N -> failwith "N state in solution"
 
+    // Gets the TrainMap from a state
+    let GetTrainLocations s =
+        match s with
+        | S(_,sm,tm,rm,p) -> tm
+        | N -> failwith "N state in solution"
+
+    // Gets the TrainMap from a state
     let GetSignalMap s =
         match s with
         | S(_,sm,_,_,_) -> sm
         | N -> failwith "N state in solution"
 
-    let TurnOffSignal l d sm =
-        match Map.tryFind (l,d) sm with
-        | Some(_) -> Map.add (l,d) false sm
-        | None -> sm
+    // Returns a signal map with the signal a given location turned of, if signal is there
+    let TurnOffSignal l sm =
+        match Map.tryFind (l,R) sm with
+        | Some(_) -> Map.add (l,R) false sm
+        | None -> match Map.tryFind (l,L) sm with
+                  | Some(_) -> Map.add (l,L) false sm
+                  | None -> sm
 
+    // Changes the signal map of a state              
     let ChangeSignalMap s sm =
         match s with
         | S(h,_,tm,rm,p) -> S(h,sm,tm,rm,p)
         | _ -> failwith "N in ChangeSignalMap"
 
-    let rec PathUntil l p = 
-        match p with
-        | [] -> []
-        | x::xs when x = l -> [x]
-        | x::xs -> x::(PathUntil l xs)
 
-    let rec OffSignals sl p ep t d nsl = 
+    // Function to turn of signals when train has passed signal
+    let rec TurnOffSignals sl nsl als = 
         match sl with
-        | [] -> List.rev nsl
-        | x::xs -> match p with
-                   | [] -> failwith "Should not be here but OK"
-                   | y::ys -> let l = GetTrainLocation x t
-                              match l = y with
-                              | true -> match ys with
-                                        | [] -> List.rev (List.fold (fun s v -> v::s) nsl sl)
-                                        | _ -> OffSignals xs p ep t d (x::nsl)
-                              | false -> let sm = GetSignalMap x
-                                         let ls = PathUntil y ep
-                                         let nsm = List.fold (fun s v -> TurnOffSignal v d s) sm ls 
-                                         let ns = ChangeSignalMap x nsm 
-                                         OffSignals xs ys ep t d (ns::nsl)
+        | [] -> nsl
+        | x::xs when List.isEmpty nsl -> TurnOffSignals xs (x::nsl) als
+        | x::xs -> let curTM = GetTrainLocations x
+                   let lastTM = GetTrainLocations (List.head nsl )
+                   let ls = Map.fold (fun s k v -> if v <> Map.find k lastTM then Set.add (Map.find k lastTM) s else s) Set.empty curTM
+                   match Set.isEmpty ls with
+                   | true -> TurnOffSignals xs (x::nsl) Set.empty
+                   | false -> let cls = Set.union als ls
+                              let sm = GetSignalMap x
+                              let nsm = Set.fold (fun s v -> TurnOffSignal v s) sm cls 
+                              let ns = ChangeSignalMap x nsm
+                              TurnOffSignals xs (ns::nsl) cls
 
-
-
-    let TurnOffSignals sl t d = 
-        //Find the path for the train
-       
-        let p = List.rev (List.fold (fun s v -> let l = GetTrainLocation v t
-                                                match s with
-                                                | [] -> [l]
-                                                | x::xs when x = l -> s
-                                                | x::xs -> l::s) [] sl)
-        OffSignals sl p p t d []
-
-
-    let CombineSolution sl ts =
+                   
+    // Postprocess function for solution found using the opening of entire paths function
+    let CombineSolutionEntirePath sl ts =
         let slr = List.rev sl
-        let r = List.rev (List.fold (fun s (t,d) -> TurnOffSignals s t d) slr ts)
+        let r = TurnOffSignals slr [] Set.empty
         let a = 0
         r
