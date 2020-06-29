@@ -4,7 +4,7 @@ open System
 open Railways.Types
 open Railways.Preprocess
 open Railways.PriorityQueue
-//open FSharpx.Collections
+open Railways.Postprocess
 
 module BestFirst =
 
@@ -312,6 +312,9 @@ module BestFirst =
         //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
         let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds
 
-        (r,x,pretime,solvetime)
+        let postresult = CombineSolution r Trains
+
+
+        (postresult,x,pretime,solvetime)
 
 
