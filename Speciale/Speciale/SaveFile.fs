@@ -3,7 +3,8 @@
 open System.IO
 open System
 open Railways.Types
-open Railways.Preprocess
+
+//Module used to save a solution to a file
 
 module SaveFiles = 
 
@@ -52,6 +53,5 @@ module SaveFiles =
 
 
         let path = Path.Combine(directoryPath,(fn + ".sol"))
-        Console.WriteLine (sprintf "SourceDirectory %A" (path))
 
         File.WriteAllLines (path, solutionSequence (List.rev sol)) |> ignore

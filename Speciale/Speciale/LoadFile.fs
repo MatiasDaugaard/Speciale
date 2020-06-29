@@ -3,13 +3,17 @@
 open System.IO
 open Railways.Types
 
+//Module used to load a railway netork from a file
+
 module LoadFiles = 
 
+    // Function to translate string rail representation to rail
     let toRail (s:string) =
         let x = List.ofArray (s.Split ' ')
         (int(List.head x), int(List.item 1 x))
 
-    let toSplitRail (s:string) =
+    // Function to translate string switchrail representation to switchrail
+    let toSwitchRail (s:string) =
         let x = List.ofArray (s.Split ' ')
         let d = match List.item 3 x with
                 | "L" -> L
@@ -17,6 +21,7 @@ module LoadFiles =
                 | x -> failwith x
         (int(List.head x), int(List.item 1 x),int(List.item 2 x),d)
 
+    // Function to translate string signal representation to signal
     let toSignal (s:string) = 
         let x = List.ofArray (s.Split ' ')
         let d = match List.item 1 x with
@@ -25,6 +30,7 @@ module LoadFiles =
                 | x -> failwith x
         (int(List.head x),d)
 
+    // Function to translate string train representation to train
     let toTrain (s:string) = 
         let x = List.ofArray (s.Split ' ')
         let d = match List.item 3 x with
@@ -34,12 +40,13 @@ module LoadFiles =
         ((List.head x), int(List.item 1 x),int(List.item 2 x),d)
 
 
-
+    // Function used to load railway network from file in given directory
     let LoadRailway f directoryPath : RailwayNetwork = 
 
         let path = Path.Combine(directoryPath,f)
         let lines = List.ofArray (File.ReadAllLines(path))
 
+        // Load the locations
         let rec ExtractLocations l r =
             match l with
             | [] -> failwith "F"
@@ -48,6 +55,7 @@ module LoadFiles =
 
         let locations,rest = ExtractLocations lines []
 
+        //Load the rails
         let rec ExtractRails l r =
             match l with
             | [] -> failwith "F"
@@ -56,14 +64,16 @@ module LoadFiles =
 
         let rails,rest = ExtractRails rest []
 
-        let rec ExtractSplitRails l r =
+        // Load the switchrails
+        let rec ExtractSwitchRails l r =
             match l with
             | [] -> failwith "F"
             | ":"::rest  -> r,rest
-            | s::rest ->    ExtractSplitRails rest ((toSplitRail (s))::r)
+            | s::rest ->    ExtractSwitchRails rest ((toSwitchRail (s))::r)
 
-        let srails,rest = ExtractSplitRails rest []
+        let srails,rest = ExtractSwitchRails rest []
 
+        //Load the signals
         let rec ExtractSignals l r =
             match l with
             | [] -> failwith "F"
@@ -72,6 +82,7 @@ module LoadFiles =
 
         let sigs,rest = ExtractSignals rest []
 
+        // Load the trains
         let rec ExtractTrains l r =
             match l with
             | [] -> r,[]

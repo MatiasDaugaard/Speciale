@@ -11,16 +11,21 @@ module BestFirst =
     
 
     let Solve rn = 
+
+        // Used to time preprocess
         let stopWatchPre = System.Diagnostics.Stopwatch.StartNew()
 
+        // Getting global variable from preprocessing
         let Trains, RWGLeft, RWGRight, Goals, DistanceMap, Pathss, SwitchRails, Priorities, MaxPrio, SM, s = InitiateState rn
 
+        // Datastructures used to keep track of current goals and paths
         let mutable Goal = List.head Goals
         let mutable Paths = List.head Pathss
         // Datastructure used to keep track of visited and non visited states
         let mutable unexploredStatesController:PriorityQueue = Q([])
-        //let mutable unexploredStatesController:IPriorityQueue<State> = PriorityQueue.empty false
+        //Datastructure used to keep track of already seen states
         let mutable generatedStates:Set<StateID> = Set.empty
+
         stopWatchPre.Stop()
         let pretime = stopWatchPre.Elapsed.TotalMilliseconds
 
@@ -30,13 +35,14 @@ module BestFirst =
             | S(_,sm,tm,rm,_) -> Map.fold (fun s (a,b,c,d) v -> hash(s,a,b,c,d,v)) (Map.fold (fun s t l -> hash(s,t,l)) (Map.fold (fun s (l,d) b -> hash(s,l,d,b)) 0 sm) tm) rm
             | _ -> failwith "Cannot hash N"    
 
+        // Function used to update the goal map
         let rec NextGoal g gl =
             match gl with
             | [] -> failwith "F"
             | x::xs when x = g -> List.head xs
             | _::xs -> NextGoal g xs
 
-        // Checks if all trains are in their goal positions if so returns true
+        // Checks if all trains are in their goal positions if so checks if final goal if so returns true otherwise updates goals
         let IsSolved (s:State) =  
             match s with
             | S(_,_,tm,_,_) -> match Map.forall (fun t l -> Map.find t tm = l) Goal with
@@ -177,15 +183,15 @@ module BestFirst =
                                   | _ -> s) Set.empty rs
 
         // Helper function to find all switch rail combinations
-        let rec allCom r sr = 
+        let rec AllCom r sr = 
             match sr with
             | []       -> r
             | x::y::xs -> let r = Set.fold (fun s v -> Set.add (Set.add y v) (Set.add (Set.add x v) s)) Set.empty r
-                          allCom r xs
+                          AllCom r xs
             | _ -> failwith "F"
-        
-        //Function to open entire path for a train
-        let openPath t d (sm:SignalMap) (rm:SwitchRailMap) =
+
+        //Function to open entire path for a train, turn on all signals and switch switchrails correctly
+        let OpenPath t d (sm:SignalMap) (rm:SwitchRailMap) =
 
             let ps = Map.find t Paths
             let nSm = Set.fold (fun s v -> let sign = (v,d)
@@ -256,7 +262,7 @@ module BestFirst =
                                                      | _ -> //let prioTs = set [Set.minElement prioTs]
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
-                                                                                                        openPath t d ssm srm) (SM,rm) prioTs
+                                                                                                        OpenPath t d ssm srm) (SM,rm) prioTs
                                                             let h = CalculateHeuristic tm
                                                             let nS = S(h,nSm,tm,nRm,s)
                                                             let s1 = if AddNewState nS Controller  then set [nS] else Set.empty
@@ -278,7 +284,7 @@ module BestFirst =
                                                             let x = set [List.item 0 srs]
                                                             let y = set [List.item 1 srs]
                                                             let srs = List.tail (List.tail srs) 
-                                                            let srcom = allCom (Set.add x (Set.add y Set.empty)) srs
+                                                            let srcom = AllCom (Set.add x (Set.add y Set.empty)) srs
 
                                                             let s2 = Set.fold (fun ss v -> let nRm = Set.fold (fun sx (sr,b) -> Map.add sr b sx) rm v
                                                                                            let locs = Set.fold (fun sx (sr,_) -> sx + (getSwitchRailLocation sr nRm)) Set.empty v
@@ -303,12 +309,14 @@ module BestFirst =
                    
                     
 
-
+        // Used to time the solving
         let stopWatchSolve = System.Diagnostics.Stopwatch.StartNew()
+
         unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
         AddNewState s Conductor |> ignore
         let r = ControllerTurn 0
         let x = Set.count generatedStates
+
         stopWatchSolve.Stop()
         //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
         let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds

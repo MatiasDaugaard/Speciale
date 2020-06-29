@@ -2,11 +2,15 @@
 
 open Railways.Types
 
+//Module uses for the preprocessing of the network data, so make the solving easier and faster
+
 module Preprocess =
 
+    // Function to get the value set of a map
     let valueSet m =
         Map.fold (fun s _ v -> Set.add v s) Set.empty m
 
+    // Function to get the key set of a map
     let keySet m =
         Map.fold (fun s k _ -> Set.add k s) Set.empty m
 
@@ -16,7 +20,7 @@ module Preprocess =
         Map.add l1 (l2::ll) m
 
 
-    // Distance from Location l in direction d to all other reachable locations
+    // Calculates the distance from Location l in direction d to all other reachable locations
     // TODO : Make smart by use of already calculated distances
     // Find all end points left or right
     // Calculate their distances to all reachable locations
@@ -28,12 +32,14 @@ module Preprocess =
                let nm = Set.fold (fun s v -> Map.add (loc,v) c (Map.add (v,loc) c s)) m nexts
                CreateDistanceMapLoc loc nexts (Set.union nexts explored) (c+1) nm rwg
 
-
+    // Creates the DistanceMap by goinf through all location and calculating their distances to all other reachable loactions
     let CreateDistanceMap ll rwg = List.fold (fun m v -> CreateDistanceMapLoc v (set [v]) (set [v]) 1 (Map.add (v,v) 0 m) rwg) Map.empty ll
 
 
-    // Found by taking intersection of reachable locations going train direction from starting location and the opposite direction from the goal location
-    let FindPaths (tl:(Train*Location) list) trains left right goal =
+    // Find all paths by taking intersection of reachable locations from starting location in train direction and the opposite direction from the goal location
+    // NOT used anymore
+    (*
+    let FindPaths tm trains left right goal =
         let rec Path d s =
             let rwg = match d with
                       | L -> left
@@ -43,14 +49,14 @@ module Preprocess =
             | true -> x
             | _ -> Path d x
 
-        List.fold (fun s (t,d) -> let sl = snd (List.find (fun (x,_) -> x = t) tl)
+        List.fold (fun s (t,d) -> let sl = Map.find t tm
                                   let gl = Map.find t goal
                                   let paths1 = Path d (set [sl])
                                   let a = if d = L then R else L
                                   let paths2 = Path a (set [gl])
                                   let paths = Set.intersect paths1 paths2
                                   Map.add t paths s) Map.empty trains
-
+    *)
 
     //Finds all distinct paths for the trains, and saves them individually
     let FindDistinctPaths tm gm tdl rwgl rwgr = 
@@ -82,13 +88,15 @@ module Preprocess =
             
 
     // Calculates priorities for trains in swap non-cycles
+    // NOT used anymore
+    (*
     let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (tm:TrainMap) (gm:Map<Location,Train>) x =
         match pre = cur with
         | true -> cur
         | false -> let maxPrio = Map.count tm + x
                    let nm = Map.fold (fun s t l -> if Map.containsKey l gm && Map.containsKey t cur then Map.add t (min (Map.find (Map.find l gm) cur + 1) maxPrio) s else s) cur tm 
                    CalculatePriorities cur nm tm gm x
-
+    *)
 
     // Find the trains that needs to swap locations
     let Swappers tm gm =
@@ -103,11 +111,12 @@ module Preprocess =
                       | false -> SwapCycle tm gm tr (Set.add t s)
         | None -> Set.empty 
 
+
     // Finds all swap cycles in the network
     let rec FindSwapCycles (tm:TrainMap) gm =
         Map.fold (fun s t l -> let cycle = (SwapCycle tm gm t Set.empty) 
                                if Set.isEmpty cycle then s else Set.add cycle s) Set.empty tm
-
+    (*
     // Calculates the distance * path value used to give priorities to trains
     let PathDistance (g:Location) (ps:Set<Location>) (dm:DistanceMap) = 
         Set.fold (fun s v -> s + Map.find (v,g) dm) 0 ps
@@ -120,11 +129,12 @@ module Preprocess =
                                    let sl = (List.sortDescending l)
                                    let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
                                    (ll,sc+(Map.count gm))) (Map.empty,0) ts
+    *)
 
-    // Function returning shortest path based on length an fewest switchrail switches
+    // Function returning shortest path based on length and fewest vertical switches
     let shortestPath ps locs = 
 
-
+        //Find the shortest of two paths
         let shortest p1 p2 = 
             match Set.isEmpty p1, Set.isEmpty p2 with
             | true,_ -> p2
@@ -154,7 +164,7 @@ module Preprocess =
         Set.forall (fun v -> let ps = Map.find v paths
                              Set.exists (fun ls -> not (Set.contains l ls)) ps) ts
 
-    // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority
+    // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority recursively 
     let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (fPaths:Map<Train,Set<Set<Location>>>) (comPaths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) =
         match Set.isEmpty ts with
         | true  -> pm,fPaths
@@ -297,7 +307,7 @@ module Preprocess =
         let distanceMap = CreateDistanceMap ll rwgLeft
 
         // Find all distinct paths from start to end location for all trains
-        //let paths = FindPaths (Map.toList tm) trains rwgLeft rwgRight goal
+        //let paths = FindPaths tm trains rwgLeft rwgRight goal
         let distinctPaths = FindDistinctPaths tm goal trains rwgLeft rwgRight
         
         // Map of end locations and their corresponding train
@@ -317,7 +327,7 @@ module Preprocess =
         let goalFirst = List.head goals
         let goalLast = List.last goals
 
-        //Find paths for second part of trains routes
+        //Find paths for second part of trains routes, needed to avoid placing blocking trains in first pass
         let sptm = Map.fold (fun s k v -> if List.contains k sts then Map.add k (Map.find k goalFirst) s else s) Map.empty tm
         let spTrains = List.fold (fun s (t,d) -> if List.contains t sts then (t,d)::s else s ) [] trains
         let spPaths = FindDistinctPaths sptm goalLast spTrains rwgLeft rwgRight
@@ -342,17 +352,17 @@ module Preprocess =
         // Update the goal for blockers first path
         let firstGoal = Set.fold (fun s v -> Map.add v (Map.find v tm) s) goalFirst blockers
         let goals = [firstGoal;goalLast]
-        // For second pass find the paths for the trains at safe locations to their goals or was blocking first round
-        let ftm = Map.fold (fun s k v -> Map.add k (Map.find k goalFirst) s) tm priorities
-        let fgm = List.last goals
-        let fdp = FindDistinctPaths ftm fgm trains rwgLeft rwgRight
+        // For second pass find the paths for the trains at safe locations or trains that was blocking first round to their goals
+        let sptm = Map.fold (fun s k v -> Map.add k (Map.find k goalFirst) s) tm priorities
+        let spgm = goalLast
+        let spdp = FindDistinctPaths sptm spgm trains rwgLeft rwgRight
         
 
-        let x,np = PriorityFun ftm ts fgm fdp fdp Map.empty (Set.count ts)
+        let x,np = PriorityFun sptm ts spgm spdp spdp Map.empty (Set.count ts)
         let nps = Map.fold (fun s k v -> Map.add k (Set.unionMany (v)) s) Map.empty np
         let Paths = firstPaths::[nps]
         let priorities = Map.fold (fun s k v -> if Map.containsKey k s then s else Map.add k v s) priorities x
-        //TODO : No train should not have been given a priority
+        //TODO : No train should not have been given a priority, so if used some case not covered
         let finalPriorities = Map.fold (fun m k v -> if not (Map.containsKey k m) then (Map.add k 0 m) else m) priorities tm
 
         trains, rwgLeft, rwgRight, goals, distanceMap, Paths, sr, finalPriorities, 0, sm,  S(0,sm,tm,rm,N)

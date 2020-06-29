@@ -23,7 +23,7 @@ let main args =
                    | None -> Console.WriteLine (sprintf "No filename entered")
                              //"CombineStateTwoTrainsTest"
                              //"CombineStateTest2"
-                             "SWAP"
+                             "LyngbyGUI"
 
     let path = match Array.tryItem 1 args with
                    | Some(n) -> n
