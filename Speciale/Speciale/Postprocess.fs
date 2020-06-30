@@ -30,11 +30,12 @@ module Postprocess =
 
     // Returns a signal map with the signal a given location turned of, if signal is there
     let TurnOffSignal l sm =
-        match Map.tryFind (l,R) sm with
-        | Some(_) -> Map.add (l,R) false sm
-        | None -> match Map.tryFind (l,L) sm with
-                  | Some(_) -> Map.add (l,L) false sm
+        let nsm = match Map.tryFind (l,R) sm with
+                  | Some(_) -> Map.add (l,R) false sm
                   | None -> sm
+        match Map.tryFind (l,L) nsm with
+        | Some(_) -> Map.add (l,L) false nsm
+        | None -> nsm
 
     // Changes the signal map of a state              
     let ChangeSignalMap s sm =
@@ -111,14 +112,22 @@ module Postprocess =
     let rec Merge sl msl rsl locs =
         match sl with
         | [] -> List.fold (fun s v -> v::s) rsl msl
-        | _ when List.isEmpty msl -> rsl
+        | _ when List.isEmpty msl -> match List.isEmpty sl with
+                                     | true -> rsl 
+                                     | false -> let nsl = List.init (List.length sl) (fun v -> List.head rsl)
+                                                let nmsl = sl
+                                                let nrsl = rsl
+                                                let ts = GetTrains nmsl Set.empty
+                                                let tlocs = Set.fold (fun s v -> Set.add (GetTrainLocation (List.head rsl) v) s) Set.empty ts
+                                                let nlocs = (tlocs) + (GetImportantLocations nmsl Set.empty)
+                                                Merge nsl nmsl nrsl nlocs
         | x::xs -> let sm = GetSignalMap x
                    let tm = GetTrainMap x
                    let rm = GetSwitchRailMap x
 
                    let ms = List.head msl 
-                    
-                   let nsm = Map.fold (fun s k v -> if v then Map.add k v s else s) sm (GetSignalMap ms)
+
+                   let nsm = Map.fold (fun s k v -> if Set.contains (fst k) locs then Map.add k v s else s) sm (GetSignalMap ms)
                    let ntm = Map.fold (fun s k v -> if Set.contains v locs then Map.add k v s else s) tm (GetTrainMap ms)
                    let nrm = Map.fold (fun s (l1,l2,l3,d) v -> if (Set.contains l1 locs || Set.contains l2 locs || Set.contains l3 locs) then Map.add (l1,l2,l3,d) v s else s) rm (GetSwitchRailMap ms) 
 
@@ -129,12 +138,20 @@ module Postprocess =
         match l with
         | [] -> r
         | x::[] -> x@r
-        | x::y::rest -> let sl = List.rev x
+        | x::y::rest -> // Get the state list that should have something merged into it
+                        let sl = List.rev x
+                        // Get the state list that should be merged into sl
                         let msl = List.rev y
+                        // Find the location which trains are using in msl
                         let locs = GetImportantLocations msl Set.empty
-                        let ts = GetTrains sl Set.empty
+                        // Find the trains that are moving in sl
+                        let n = min (List.length sl) (List.length msl)
+                        let ts = GetTrains (List.rev(List.take n (List.rev sl))) Set.empty
+                        // Find the place to merge into sl
                         let sl1, rsl = FindSplitState sl locs ts []
+                        // Put the non-mergeable states in the result list
                         let r = rsl@r
+                        // Merge msl into the place in sl
                         let rsl1 = Merge sl1 msl r locs
                         let ny = (List.take (List.length y) rsl1)
                         let nrsl = List.rev (List.take (List.length rsl1 - List.length y) (List.rev rsl1))

@@ -37,8 +37,7 @@ module Preprocess =
 
 
     // Find all paths by taking intersection of reachable locations from starting location in train direction and the opposite direction from the goal location
-    // NOT used anymore
-    
+    // Only used for non priority version
     let FindPaths tm trains left right goal =
         let rec Path d s =
             let rwg = match d with
@@ -99,23 +98,64 @@ module Preprocess =
     *)
 
     // Find the trains that needs to swap locations
-    let Swappers tm gm =
-        Map.fold (fun s k v -> if Map.containsKey v gm then Set.add k (Set.add (Map.find v gm) s) else s) Set.empty tm
+    let Swappers (tm:TrainMap) gm paths =
+        Map.fold (fun s k v -> let glocs = (valueSet gm)
+                               let sx = match Set.contains v glocs with
+                                        | true -> let ot = Map.findKey (fun ot gl -> gl = v) gm
+                                                  Set.add k (Set.add ot s) 
+                                        | false -> s
 
-    // Calculates if a given train is part of a swap cycle, and if so return the swap cycle
-    let rec SwapCycle (tm:TrainMap) gm t s =
+                               let ps = Map.find k paths 
+                               let ts = Set.remove k (keySet tm)
+                               let locP = Set.fold (fun ls t -> Set.add (t,Map.find t tm, Map.find t gm) ls) Set.empty ts
+                               let b = Set.forall (fun p -> Set.exists (fun (_,l1,l2) -> not (Set.contains l1 p && Set.contains l2 p)) locP) ps
+                                                      
+                               match b with
+                               | true -> let ot = Set.fold (fun s (t,_,_) -> Set.add t s) Set.empty (Set.filter (fun (t,l1,l2) -> Set.forall (fun p -> Set.contains l1 p || Set.contains l2 p) ps) locP) 
+                                         Set.add k (Set.union ot s) 
+                               | false -> sx) Set.empty tm
+
+    // Calculates if a given train is part of a swap cycle, and if so returns the swap cycle
+    let rec SwapCycle (tm:TrainMap) gm t s  =
         let l = Map.find t tm 
-        match Map.tryFind l gm with
+        match (Map.tryFindKey (fun k v -> v = l) gm) with
         | Some(tr) -> match Set.contains tr s with
-                      | true -> Set.add t s
-                      | false -> SwapCycle tm gm tr (Set.add t s)
+                            | true -> Set.add t s
+                            | false -> SwapCycle tm gm tr (Set.add t s)
         | None -> Set.empty 
 
+    let SpecialSwapCycle (tm:TrainMap) gm t paths = 
+        let ps = Map.find t paths 
+        let ts = Set.remove t (keySet tm)
+        let locP = Set.fold (fun ls t -> Set.add (t,Map.find t tm, Map.find t gm) ls) Set.empty ts
+        let b = Set.forall (fun p -> Set.exists (fun (_,l1,l2) -> not (Set.contains l1 p && Set.contains l2 p)) locP) ps
+        match b with
+        | true -> let ot = Set.fold (fun s (t,_,_) -> Set.add t s) Set.empty (Set.filter (fun (t,l1,l2) -> Set.forall (fun p -> Set.contains l1 p || Set.contains l2 p) ps) locP) 
+                  Set.add t ot
+        | false -> Set.empty
+
+    let rec CombineSwapSets ss rs = 
+        match Set.isEmpty ss with
+        | true -> rs
+        | false when Set.isEmpty rs -> let s = Set.minElement ss
+                                       CombineSwapSets (Set.remove s ss) (Set.add s rs)
+        | false -> let x = Set.maxElement ss
+                   let rest = (Set.remove x ss)
+                   let rs = match Set.exists (fun v -> not (Set.isEmpty (Set.intersect v x))) rs with
+                            | true -> Set.fold (fun s v -> if not (Set.isEmpty (Set.intersect v x)) then Set.add (v+x) s else Set.add v s) Set.empty rs
+                            | false -> Set.add x rs
+                   CombineSwapSets rest rs
 
     // Finds all swap cycles in the network
-    let rec FindSwapCycles (tm:TrainMap) gm =
-        Map.fold (fun s t l -> let cycle = (SwapCycle tm gm t Set.empty) 
-                               if Set.isEmpty cycle then s else Set.add cycle s) Set.empty tm
+    let rec FindSwapCycles (tm:TrainMap) gm paths =
+        let nsc = Map.fold (fun s t l -> let cycle = (SwapCycle tm gm t Set.empty) 
+                                         if Set.isEmpty cycle then s else Set.add cycle s) Set.empty tm
+        let scs = Map.fold (fun s t l -> let cycle = SpecialSwapCycle tm gm t paths
+                                         match Set.isEmpty cycle with
+                                         | true -> s 
+                                         | false -> Set.add cycle s) nsc tm
+        CombineSwapSets scs Set.empty
+        
     (*
     // Calculates the distance * path value used to give priorities to trains
     let PathDistance (g:Location) (ps:Set<Location>) (dm:DistanceMap) = 
@@ -243,6 +283,7 @@ module Preprocess =
 
 
     //Find a train which can be move to the "side" safely
+    //TODO : Might need to find more trains for stupid swap problems
     let FindSafeTrain (ts:Set<Train>) (paths:Map<Train,Set<Set<Location>>>) dm tm sm td =
         //For each train find their "safe" locations
         let safeZone = Set.fold (fun s v -> // Find all locations the train can reach
@@ -253,14 +294,14 @@ module Preprocess =
                                                                             | _ -> ss) Set.empty locs
                                             Set.union s sls
                                 ) Set.empty ts
-        //The the train with the short distance to a safe location
+        //The the train with the longest distance to a safe location
         Set.fold (fun (d,tr,loc) (t,l) -> let dis = Map.find (l,Map.find t tm) dm
                                           let dir = Map.find t td
                                           //Safe location needs a signal, such that the train does not move away from it
-                                          match dis < d && (Map.containsKey (l,dir) sm)with
+                                          match dis > d && (Map.containsKey (l,dir) sm) && dis > 0 with
                                           | true -> (dis,t,l)
                                           | _ -> (d,tr,loc)
-                 ) (1000,"",0) safeZone
+                 ) (0,"",0) safeZone
 
     //Creates the extra goal map and paths allowing trains to move to safe location first and then when rest in goal themselves
     let SplitWork swappers paths dm tm sm ds gm rwgL rwgR  =
@@ -309,17 +350,16 @@ module Preprocess =
         // Find all distinct paths from start to end location for all trains
         //let paths = FindPaths tm trains rwgLeft rwgRight goal
         let distinctPaths = FindDistinctPaths tm goal trains rwgLeft rwgRight
-        
-        // Map of end locations and their corresponding train
-        let gl = List.fold (fun s (t,_,l,_) -> Map.add l t s) Map.empty tl
+
+
         // Map of trains and their direction
         let ds = List.fold (fun s (t,_,_,d) -> Map.add t d s) Map.empty tl
 
         // Set of trains that in someway has to swap location with another train
-        let swappers = Swappers tm gl
+        //let swappers = Swappers tm goal distinctPaths
 
         // Set of trains in swap cycles
-        let swapCycles = FindSwapCycles tm gl
+        let swapCycles = FindSwapCycles tm goal distinctPaths
 
         //Find the trains which has to be move to safe locations first round
         let goals,dPaths,sts = SplitWork swapCycles distinctPaths distanceMap tm sm ds goal rwgLeft rwgRight
