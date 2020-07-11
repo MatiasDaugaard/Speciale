@@ -258,7 +258,7 @@ module BestFirst =
                                                                                                  if b && AddNewState nS Controller then Set.add nS sx else sx) Set.empty tSR
                                                             
                                                             ConductorTurn (s1+s2)
-
+                                                     (*
                                                      | _ -> //let prioTs = set [Set.minElement prioTs]
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
@@ -269,8 +269,11 @@ module BestFirst =
 
 
                                                             ConductorTurn s1
+                                                      *) 
+                                                     | _ ->
+                                                        // TODO : Pick a single train only for better multiagent
+                                                        let tSigs = [List.head tSigs]
                                                         // Create one new states for all relevant signals being turned on
-                                                     (*
                                                         let nSm = List.fold (fun s v -> Map.add v true s) SM tSigs
                                                         let h = CalculateHeuristic tm 
                                                         let nS = S(h,nSm,tm,rm,s)
@@ -295,7 +298,7 @@ module BestFirst =
                                                             ConductorTurn (s1+s2)
                                                         else 
                                                             ConductorTurn s1
-                                                     *)
+                                                     
                                | _ -> failwith "ControllerTurn"
 
            and ConductorTurn (states:Set<State>) = 
@@ -325,7 +328,8 @@ module BestFirst =
         // Used to time the postprocessing
         let stopWatchPost = System.Diagnostics.Stopwatch.StartNew()
 
-        let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionEntirePath r Trains 
+        //let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionEntirePath r
+        let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionSingleStep r Trains
 
         stopWatchPost.Stop()
         let posttime = stopWatchPost.Elapsed.TotalMilliseconds
