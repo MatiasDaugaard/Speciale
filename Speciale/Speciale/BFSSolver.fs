@@ -113,9 +113,12 @@ module BestFirst =
                                                               //Should not be able to reach another train
                                                            let tloc = Set.remove (Map.find t tm) (Preprocess.valueSet tm)
                                                            let locs = Set.union rls tloc
-                                                           Set.intersect rl locs = Set.empty &&
+                                                           let b1 = Set.intersect rl locs = Set.empty
+                                                           let b2 = Set.difference rl (Map.find t Paths) = Set.empty
+                                                           let c = 0
+                                                           b1 && b2
                                                               // Should not be able to reach location not on path
-                                                           Set.difference rl (Map.find t Paths) = Set.empty) Trains
+                                                           ) Trains
             | _ -> failwith "IsSafeState N"
 
 
@@ -334,6 +337,17 @@ module BestFirst =
         stopWatchPost.Stop()
         let posttime = stopWatchPost.Elapsed.TotalMilliseconds
 
+        let rec CheckSafeness l =
+            match l with
+            | [] -> ()
+            | x::xs -> match IsSafeState x with
+                       | false -> Console.WriteLine(sprintf "Something went wrong")
+                                  CheckSafeness xs
+                       | true -> CheckSafeness xs
+                       
+
+        Paths <- Map.fold (fun s k v -> Map.add k (v+Map.find k s) s) Paths (List.head Pathss)
+        CheckSafeness postresult
         (postresult,x,pretime,solvetime,posttime)
         //(r,x,pretime,solvetime,posttime)
 
