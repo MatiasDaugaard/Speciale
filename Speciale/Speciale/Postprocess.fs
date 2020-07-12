@@ -288,9 +288,15 @@ module Postprocess =
                               let ns = UpdateState x nsm ntm nrm 
                               MergeSingleStep xs (List.tail msl) (ns::rsl) ts
 
+    let rec StatesWithoutTrains sl ts =
+        match sl with
+        | [] -> []
+        | x::xs -> let mts = GetMovingTrains (sl) Set.empty
+                   match Set.isEmpty (Set.intersect ts mts) with
+                   | true -> sl
+                   | false -> StatesWithoutTrains xs ts 
 
-
-    let rec MergingSingleStep l r tdl n b = 
+    let rec MergingSingleStep l r tdl = 
         match l with
         | [] -> r
         | x::[] -> x@r
@@ -306,7 +312,7 @@ module Postprocess =
                         match ts = allTs with
                         | true -> let nx = List.tail sl
                                   let nr = (List.head sl::r)
-                                  MergingSingleStep (nx::y::rest) nr tdl n b
+                                  MergingSingleStep (nx::y::rest) nr tdl
                         | false ->  // Get the trains moving in msl
                                     let mts = GetMovingTrains msl Set.empty
                                     let a = if Set.contains "T0" mts
@@ -329,47 +335,34 @@ module Postprocess =
                                     match nsl,nmsl with
                                     | [],[] -> match rest with
                                                | [] -> rsl1
-                                               | z::zs -> let n = max n (List.length z)
-                                                          let ny = match n > List.length rsl1 with
-                                                                   | true -> List.rev rsl1 
-                                                                   | false -> List.rev (List.take (n) rsl1)
+                                               | z::zs -> let ny = StatesWithoutTrains (List.rev rsl1) (GetMovingTrains z Set.empty)
                                                           let nrsl = List.rev (List.take (List.length rsl1 - List.length ny) (List.rev rsl1))
-                                                          MergingSingleStep (ny::z::zs) nrsl tdl n true
+                                                          MergingSingleStep (ny::z::zs) nrsl tdl
 
                                     | [],_ -> let nrsl = List.fold (fun s v -> v::s) rsl1 nmsl 
                                               match rest with
                                               | [] -> nrsl
-                                              | z::zs -> let n = max n (List.length z)
-                                                         let ny = match n > List.length nrsl with
-                                                                  | true -> List.rev nrsl 
-                                                                  | false -> List.rev (List.take (n) nrsl)
-
+                                              | z::zs -> let ny = StatesWithoutTrains (List.rev nrsl) (GetMovingTrains z Set.empty)
                                                          let nrsl = List.rev (List.take (List.length nrsl - List.length ny) (List.rev nrsl))
-                                                         MergingSingleStep (ny::z::zs) nrsl tdl n true
+                                                         MergingSingleStep (ny::z::zs) nrsl tdl
                                     | _,[] -> let nmsl1 = List.init (List.length nsl) (fun v -> List.head rsl1)
                                               let nsl1 = nsl
-                                              //TODO : Not ats here fix
                                               let _,nrsl = MergeSingleStep nsl1 nmsl1 rsl1 mts
                                               match rest with
                                               | [] -> nrsl
-                                              | z::zs -> let n = max n (List.length z)
-                                                         let ny = match n > List.length nrsl with
-                                                                  | true -> List.rev nrsl 
-                                                                  | false -> List.rev (List.take n nrsl)
-
+                                              | z::zs -> let ny = StatesWithoutTrains (List.rev nrsl) (GetMovingTrains z Set.empty)
                                                          let nrsl = List.rev (List.take (List.length nrsl - List.length ny) (List.rev nrsl))
-                                                         MergingSingleStep (ny::z::zs) nrsl tdl n true
-                                    | _,_ -> let b,n = if b then false,List.length y else b,n
-                                             MergingSingleStep (nsl::nmsl::rest) rsl1 tdl n b
+                                                         MergingSingleStep (ny::z::zs) nrsl tdl 
+                                    | _,_ -> MergingSingleStep (nsl::nmsl::rest) rsl1 tdl
                                 
 
 
     let MergeStatesSingleStep sl tdl =
         let x = SplitStateListSingleStep sl [] tdl
-        let y = MergingSingleStep x [] tdl (List.length (List.head x)) true
+        let y = MergingSingleStep x [] tdl
         y
 
-    //TODO : Check LineSwapping solution for train not moving and the weird end
+
     let CombineSolutionSingleStep sl tdl =
         let slr = List.rev sl
         let r = TurnOffSignals slr [] Set.empty
