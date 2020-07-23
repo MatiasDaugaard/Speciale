@@ -24,7 +24,7 @@ let main args =
                    | None -> Console.WriteLine (sprintf "No filename entered")
                              //"CombineStateTwoTrainsTest"
                              //"CombineStateTest2"
-                             "SWAP"
+                             "CopenhagenReal"
 
     let path = match Array.tryItem 1 args with
                    | Some(n) -> n
@@ -52,7 +52,7 @@ let main args =
                                       
     
                              
-    saveSolution result (pretime+solvetime) gs filename path
+    saveSolution result (pretime+solvetime+posttime) gs filename path
 
     List.iter (fun s -> if (GameOver s) then Console.WriteLine(sprintf "Something went wrong GameOver") else ()) (List.rev result)
 

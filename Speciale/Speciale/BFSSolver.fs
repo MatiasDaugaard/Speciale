@@ -139,7 +139,7 @@ module BestFirst =
             if not (Set.contains h generatedStates)
             then unexploredStatesController <- PriorityQueue.insert s unexploredStatesController
                  generatedStates <- Set.add h generatedStates
-                 if (Set.count generatedStates % 1000 = 0) then Console.WriteLine (sprintf "%A" (Set.count generatedStates))
+                 //if (Set.count generatedStates % 1000 = 0) then Console.WriteLine (sprintf "%A" (Set.count generatedStates))
                  true
             else false
 
@@ -261,8 +261,12 @@ module BestFirst =
                                                                                                  if b && AddNewState nS Controller then Set.add nS sx else sx) Set.empty tSR
                                                             
                                                             ConductorTurn (s1+s2)
-                                                     (*
-                                                     | _ -> //let prioTs = set [Set.minElement prioTs]
+                                                     // The block below should be uncommented if the version opening all signals on paths for trains should be used
+                                                     // ####################################
+                                                     // START OF OPENING ENTIRE PATHS SOLVER
+                                                     //(*
+                                                     | _ -> // Uncomment line below for single agent entire paths solver
+                                                            //let prioTs = set [Set.minElement prioTs]
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
                                                                                                         OpenPath t d ssm srm) (SM,rm) prioTs
@@ -272,9 +276,16 @@ module BestFirst =
 
 
                                                             ConductorTurn s1
-                                                      *) 
+                                                     //*) 
+                                                     // END OF OPENING ENTIRE PATHS SOLVER
+                                                     // ##################################
+
+                                                     // The block below should be uncommented if the version opening only signals at same location as trains should be used
+                                                     // #####################################
+                                                     // START OF SINGLE SIGNAL OPENING SOLVER
+                                                     (*
                                                      | _ ->
-                                                        // TODO : Pick a single train only for better multiagent
+                                                        
                                                         let tSigs = [List.head tSigs]
                                                         // Create one new states for all relevant signals being turned on
                                                         let nSm = List.fold (fun s v -> Map.add v true s) SM tSigs
@@ -301,7 +312,10 @@ module BestFirst =
                                                             ConductorTurn (s1+s2)
                                                         else 
                                                             ConductorTurn s1
-                                                     
+                                                     *)
+                                                     // END OF SINGLE SIGNAL OPENING SOLVER
+                                                     // ###################################
+                                                      
                                | _ -> failwith "ControllerTurn"
 
            and ConductorTurn (states:Set<State>) = 
@@ -324,15 +338,16 @@ module BestFirst =
         let x = Set.count generatedStates
 
         stopWatchSolve.Stop()
-        //List.iter (fun s -> if not (IsSafeState s) then Console.WriteLine(sprintf "Something went wrong") else ()) r
         let solvetime = stopWatchSolve.Elapsed.TotalMilliseconds
 
-        //Only work for solution found using the opening of entire path function
+        let postresult = r
         // Used to time the postprocessing
         let stopWatchPost = System.Diagnostics.Stopwatch.StartNew()
+        // Line below used multiagent postprocess for opening entire paths solver
+        let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionEntirePath r
 
-        //let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionEntirePath r
-        let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionSingleStep r Trains
+        // Line below used multiagent postprocess for opening single signal solver
+        //let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionSingleStep r Trains
 
         stopWatchPost.Stop()
         let posttime = stopWatchPost.Elapsed.TotalMilliseconds
@@ -349,6 +364,6 @@ module BestFirst =
         Paths <- Map.fold (fun s k v -> Map.add k (v+Map.find k s) s) Paths (List.head Pathss)
         CheckSafeness postresult
         (postresult,x,pretime,solvetime,posttime)
-        //(r,x,pretime,solvetime,posttime)
+
 
 

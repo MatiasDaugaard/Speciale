@@ -204,12 +204,17 @@ module Preprocess =
         Set.forall (fun v -> let ps = Map.find v paths
                              Set.exists (fun ls -> not (Set.contains l ls)) ps) ts
 
-    // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority recursively 
+    // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority recursively
+    // TODO : Look at CopenhagenReal T0 and T4 should not both have prio 6
     let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (fPaths:Map<Train,Set<Set<Location>>>) (comPaths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) =
         match Set.isEmpty ts with
         | true  -> pm,fPaths
-        | false -> // Find all trains the have an open path from start to goal, in current setup, and does not block trains by being in goal location
-                   let freeTrain = Set.fold (fun s t -> let pathSet = Map.find t fPaths
+        | false -> // Temporarily remove paths that cannot be used due to locations of train
+                   let tempPaths = Map.fold (fun s t v -> let locs = (Set.remove (Map.find t curLoc) (valueSet curLoc))
+                                                          let ls = Set.fold (fun s v -> if Set.isEmpty (Set.intersect locs v) then Set.add v s else s ) Set.empty v
+                                                          Map.add t ls s) Map.empty fPaths
+                   // Find all trains the have an open path from start to goal, in current setup, and does not block trains by being in goal location
+                   let freeTrain = Set.fold (fun s t -> let pathSet = Map.find t tempPaths
                                                         //Location of the other trains
                                                         let locs = (Set.remove (Map.find t curLoc) (valueSet curLoc))
                                                         //Checks if given train has a path that does not intersect with location of other trains
@@ -223,13 +228,13 @@ module Preprocess =
                    match Set.isEmpty freeTrain with
                    | true  -> pm,fPaths
                    | false -> //Finds lists of trains with open path, that have non crossing paths
-                              let t = Set.fold (fun s v -> let pathSet = Map.find v fPaths
+                              let t = Set.fold (fun s v -> let pathSet = Map.find v tempPaths
                                                            // Location of other trains
                                                            let locs = (Set.remove (Map.find v curLoc) (valueSet curLoc))
                                                            // Find shortest paths that does not cross any other trains current position
                                                            let p = shortestPath pathSet locs
                                                            // Finds free trains that have non crossing paths with train
-                                                           let (x,_) = Set.fold (fun (sx,xx) vx -> let px = Map.find vx fPaths
+                                                           let (x,_) = Set.fold (fun (sx,xx) vx -> let px = Map.find vx tempPaths
                                                                                                    let gls = List.fold (fun s v -> Set.add (Map.find v gs) s) Set.empty (vx::sx)
                                                                                                    let py = Set.fold (fun sz vz -> if Set.isEmpty (Set.intersect vz xx) && (Set.count vz < Set.count sz || Set.isEmpty sz) then vz else sz) Set.empty px
                                                                                                    let b = Map.exists (fun mk mv -> let pss = Set.filter (fun ls -> Set.isEmpty (Set.intersect ls gls)) mv
@@ -251,7 +256,7 @@ module Preprocess =
                               let gls = List.fold (fun s v -> Set.add (Map.find v gs) s) Set.empty bts
                               //Update the path of the trains to the ones not crossing
                               let fPaths,_ = List.fold (fun (s,sp) v -> let locs = (Set.remove (Map.find v curLoc) (valueSet curLoc)) + sp
-                                                                        let pathSet = Map.find v fPaths
+                                                                        let pathSet = Map.find v tempPaths
                                                                         let p = shortestPath pathSet locs
                                                                         (Map.add v (set [p]) s),sp+p) (fPaths,Set.empty) (List.rev bts) 
                               //Remove these paths from the comPaths
@@ -301,7 +306,6 @@ module Preprocess =
         
 
     //Find a train which can be move to the "side" safely
-    //TODO : Might need to find more trains for stupid swap problems
     let FindSafeTrain (ts:Set<Train>) (paths:Map<Train,Set<Set<Location>>>) dm tm sm td bl rwgL rwgR =
         //For each train find their "safe" locations
         let safeZone = Set.fold (fun s v -> // Find all locations the train can reach
@@ -393,16 +397,16 @@ module Preprocess =
         // Create the distance map
         let distanceMap = CreateDistanceMap ll rwgLeft
 
-        // Find all distinct paths from start to end location for all trains
-        //let paths = FindPaths tm trains rwgLeft rwgRight goal
-        let distinctPaths = FindDistinctPaths tm goal trains rwgLeft rwgRight
 
+        // The block below should be uncommented if the priority preprocess should be used
+        // #################################
+        // START OF PRIORITY PREPROCESS CODE
+        //(*
+        // Find all distinct paths from start to end location for all trains
+        let distinctPaths = FindDistinctPaths tm goal trains rwgLeft rwgRight
 
         // Map of trains and their direction
         let ds = List.fold (fun s (t,_,_,d) -> Map.add t d s) Map.empty tl
-
-        // Set of trains that in someway has to swap location with another train
-        //let swappers = Swappers tm goal distinctPaths
 
         // Set of trains in swap cycles
         let swapCycles = FindSwapCycles tm goal distinctPaths
@@ -450,11 +454,21 @@ module Preprocess =
         let priorities = Map.fold (fun s k v -> if Map.containsKey k s then s else Map.add k v s) priorities x
         //TODO : No train should not have been given a priority, so if used some case not covered
         let finalPriorities = Map.fold (fun m k v -> if not (Map.containsKey k m) then (Map.add k 0 m) else m) priorities tm
-        //Uncomment to see solution without priorities
-        //let goals = [goalLast]
-        //let paths = FindPaths tm trains rwgLeft rwgRight goal
-        //let Paths = [paths]
-        //let finalPriorities = Map.fold (fun m k v -> Map.add k 0 m) Map.empty tm
+        // END OF PRIORITY PREPROCESS CODE
+        // ###############################
+        //*)
 
+
+        //The block below should be uncommented if the version of no priorities should be used
+        (*
+        // ####################################
+        // START OF NO PRIORITY PREPROCESS CODE
+        let goals = [goal]
+        let paths = FindPaths tm trains rwgLeft rwgRight goal
+        let Paths = [paths]
+        let finalPriorities = Map.fold (fun m k v -> Map.add k 0 m) Map.empty tm
+        // END OF NO PRIORITY PREPROCESS CODE
+        // ##################################
+        *)
 
         trains, rwgLeft, rwgRight, goals, distanceMap, Paths, sr, finalPriorities, 0, sm,  S(0,sm,tm,rm,N)
