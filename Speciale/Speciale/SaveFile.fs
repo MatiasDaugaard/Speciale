@@ -20,9 +20,7 @@ module SaveFiles =
 
 
         let solutionSequence (sol:State list) =
-                let template = "<trains>{0}\n<signals>{1}\n<rails>{2}"
-
-
+    
                 let locs m = 
                     let s = seq{
                                 for x in mapValues m do

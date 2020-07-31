@@ -84,18 +84,7 @@ module Preprocess =
                                   let nSll = Set.fold (fun sx vx -> let p = RemovePath g vx
                                                                     if Set.isEmpty p then sx else Set.add p sx) Set.empty sll
                                   Map.add t nSll s) Map.empty tdl
-            
-
-    // Calculates priorities for trains in swap non-cycles
-    // NOT used anymore
-    (*
-    let rec CalculatePriorities (pre:Map<Train,int>) (cur:Map<Train,int>) (tm:TrainMap) (gm:Map<Location,Train>) x =
-        match pre = cur with
-        | true -> cur
-        | false -> let maxPrio = Map.count tm + x
-                   let nm = Map.fold (fun s t l -> if Map.containsKey l gm && Map.containsKey t cur then Map.add t (min (Map.find (Map.find l gm) cur + 1) maxPrio) s else s) cur tm 
-                   CalculatePriorities cur nm tm gm x
-    *)
+                                  
 
     // Find the trains that needs to swap locations
     let Swappers (tm:TrainMap) gm paths =
@@ -124,6 +113,7 @@ module Preprocess =
                             | false -> SwapCycle tm gm tr (Set.add t s)
         | None -> Set.empty 
 
+    // Calculates if any train is part of a special swap cycle, not chaging places but train would block if placed and not moved, and returns them
     let SpecialSwapCycle (tm:TrainMap) gm t paths = 
         let ps = Map.find t paths 
         let ts = Set.remove t (keySet tm)
@@ -134,6 +124,7 @@ module Preprocess =
                   Set.add t ot
         | false -> Set.empty
 
+    // Combines sets of trains if they have any trains in common
     let rec CombineSwapSets ss rs = 
         match Set.isEmpty ss with
         | true -> rs
@@ -155,21 +146,6 @@ module Preprocess =
                                          | true -> s 
                                          | false -> Set.add cycle s) nsc tm
         Set.fold (fun s v -> if Set.count v < 2 then s else Set.add v s) Set.empty (CombineSwapSets scs Set.empty)
-        
-    (*
-    // Calculates the distance * path value used to give priorities to trains
-    let PathDistance (g:Location) (ps:Set<Location>) (dm:DistanceMap) = 
-        Set.fold (fun s v -> s + Map.find (v,g) dm) 0 ps
-
-    // Calculates the priority of all swap cycles in the network
-    // TODO : Look at this, remove this
-    let PrioritiesSwapCycle (ts:Set<Set<Train>>) (gm:TrainMap) (paths:Map<Train,Set<Location>>) (ds:Map<Train,Direction>) (dm:DistanceMap) =
-        Set.fold (fun (sm,sc) v -> let l = Set.fold (fun sx t -> (PathDistance (Map.find t gm) (Map.find t paths) dm,t)::sx) [] v
-                                   //let l = Set.fold (fun sx t -> (Set.count (Map.find t paths),t)::sx) [] v
-                                   let sl = (List.sortDescending l)
-                                   let ll,_ = List.fold (fun (sl,c) (_,t) -> Map.add t (c+sc) sl,(c+1)) (sm,1) sl
-                                   (ll,sc+(Map.count gm))) (Map.empty,0) ts
-    *)
 
     // Function returning shortest path based on length and fewest vertical switches
     let shortestPath ps locs = 
@@ -205,7 +181,6 @@ module Preprocess =
                              Set.exists (fun ls -> not (Set.contains l ls)) ps) ts
 
     // Function to give priority to trains that have a free path to goal, and give trains that have non crossing path same priority recursively
-    // TODO : Look at CopenhagenReal T0 and T4 should not both have prio 6
     let rec PriorityFun (curLoc:Map<Train,Location>) (ts:Set<Train>) (gs:Map<Train,Location>) (fPaths:Map<Train,Set<Set<Location>>>) (comPaths:Map<Train,Set<Set<Location>>>) (pm:Map<Train,int>) (c:int) =
         match Set.isEmpty ts with
         | true  -> pm,fPaths
