@@ -18,7 +18,7 @@ module LoadFiles =
         let d = match List.item 3 x with
                 | "L" -> L
                 | "R" -> R
-                | x -> failwith x
+                | x -> failwith ("Direction illegal cannot translate " + x + " to a direction")
         (int(List.head x), int(List.item 1 x),int(List.item 2 x),d)
 
     // Function to translate string signal representation to signal
@@ -27,7 +27,7 @@ module LoadFiles =
         let d = match List.item 1 x with
                 | "L" -> L
                 | "R" -> R
-                | x -> failwith x
+                | x -> failwith ("Direction illegal cannot translate " + x + " to a direction")
         (int(List.head x),d)
 
     // Function to translate string train representation to train
@@ -36,20 +36,18 @@ module LoadFiles =
         let d = match List.item 3 x with
                 | "L" -> L
                 | "R" -> R
-                | x -> failwith x
+                | x -> failwith ("Direction illegal cannot translate " + x + " to a direction")
         ((List.head x), int(List.item 1 x),int(List.item 2 x),d)
 
 
-    // Function used to load railway network from file in given directory
+    // Function used to load railway network from file in a given directory
     let LoadRailway f directoryPath : RailwayNetwork = 
-
         let path = Path.Combine(directoryPath,f)
         let lines = List.ofArray (File.ReadAllLines(path))
-
         // Load the locations
         let rec ExtractLocations l r =
             match l with
-            | [] -> failwith "F"
+            | [] -> failwith "Ran out of lines when trying to read locations"
             | ":"::rest  -> r,rest
             | s::rest ->    ExtractLocations rest ((int (s))::r)
 
@@ -58,7 +56,7 @@ module LoadFiles =
         //Load the rails
         let rec ExtractRails l r =
             match l with
-            | [] -> failwith "F"
+            | [] -> failwith "Ran out of lines when trying to read rails"
             | ":"::rest  -> r,rest
             | s::rest ->    ExtractRails rest ((toRail (s))::r)
 
@@ -67,7 +65,7 @@ module LoadFiles =
         // Load the switchrails
         let rec ExtractSwitchRails l r =
             match l with
-            | [] -> failwith "F"
+            | [] -> failwith "Ran out of lines when trying to read switch-rails"
             | ":"::rest  -> r,rest
             | s::rest ->    ExtractSwitchRails rest ((toSwitchRail (s))::r)
 
@@ -76,7 +74,7 @@ module LoadFiles =
         //Load the signals
         let rec ExtractSignals l r =
             match l with
-            | [] -> failwith "F"
+            | [] -> failwith "Ran out of lines when trying to read signals"
             | ":"::rest  -> r,rest
             | s::rest ->    ExtractSignals rest ((toSignal (s))::r)
 

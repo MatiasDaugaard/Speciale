@@ -2,7 +2,7 @@
 
 open Types
 
-// Implemation of priority queue
+// Implementation of priority queue
 
 module PriorityQueue =
 
@@ -31,7 +31,6 @@ module PriorityQueue =
                    | _ -> failwith "F" 
 
     // Function to insert element in queue
-    //TODO : faster insert
     let insert s q =
         match s,q with
         | (S(h,_,_,_,_),Q(l)) -> Q(insertInList s h l)

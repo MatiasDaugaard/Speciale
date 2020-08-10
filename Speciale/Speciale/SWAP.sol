@@ -1416,5 +1416,5 @@
 </>
 <states> 283
 <generated> 401
-<time> 754.1099
+<time> 593.5871
 </solution>
