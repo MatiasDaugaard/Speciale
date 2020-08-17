@@ -37,7 +37,7 @@ module SaveFiles =
                 let stateSeq (s) =
                     match s with
                     | S(_,sm,tm,rm,_) -> sprintf "<>\n<trains>[%s]\n<signals>[%s]\n<rails>[%s]\n</>"  (locs tm) (bLocs sm) (bLocs rm)
-                    | _ -> failwith "F"
+                    | _ -> failwith "N state in solution"
 
                 seq {
                     yield "<solution>"

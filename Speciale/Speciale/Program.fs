@@ -22,8 +22,6 @@ let main args =
     let filename = match Array.tryHead args with
                    | Some(n) -> n
                    | None -> Console.WriteLine (sprintf "No filename entered")
-                             //"CombineStateTwoTrainsTest"
-                             //"CombineStateTest2"
                              "LyngbyGUI"
 
     let path = match Array.tryItem 1 args with
@@ -43,8 +41,7 @@ let main args =
              with
                  | _ -> ([],[],[],[],[])
 
-
-    //Solve rn |> ignore
+                 
     let result,gs,pretime,solvetime,posttime = try
                                                    Solve rn
                                                with

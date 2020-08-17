@@ -204,7 +204,15 @@ module BestFirst =
                                                       | false -> let sr = Map.find (v,np) SwitchRails
                                                                  ChangeSwitchRail sr s) rm ps
             nSm,nRm
-        
+
+        // Helper function to find all switch rail combinations
+        let rec AllCom r sr = 
+            match sr with
+            | []       -> r
+            | x::y::xs -> let r = Set.fold (fun s v -> Set.add (Set.add y v) (Set.add (Set.add x v) s)) Set.empty r
+                          AllCom r xs
+            | _ -> failwith "AllCom failed"
+
         // The game
         let rec ControllerTurn _ =
             match PriorityQueue.isEmpty unexploredStatesController with
@@ -254,9 +262,9 @@ module BestFirst =
                                                      // The block below should be uncommented if the version opening all signals on paths for trains should be used
                                                      // ####################################
                                                      // START OF OPENING ENTIRE PATHS SOLVER
-                                                     //(*
+                                                     (*
                                                      | _ -> // Uncomment line below for single agent entire paths solver
-                                                            let prioTs = set [Set.minElement prioTs]
+                                                            //let prioTs = set [Set.minElement prioTs]
                                                             let nSm,nRm = Set.fold (fun (ssm,srm) t ->  let t = t
                                                                                                         let _,d = List.find (fun (l,d) -> l = Map.find t tm) td
                                                                                                         OpenPath t d ssm srm) (SM,rm) prioTs
@@ -264,14 +272,14 @@ module BestFirst =
                                                             let nS = S(h,nSm,tm,nRm,s)
                                                             let s1 = if AddNewState nS Controller  then set [nS] else Set.empty
                                                             ConductorTurn s1
-                                                     //*) 
+                                                     *) 
                                                      // END OF OPENING ENTIRE PATHS SOLVER
                                                      // ##################################
 
                                                      // The block below should be uncommented if the version opening only signals at same location as trains should be used
                                                      // #####################################
                                                      // START OF SINGLE SIGNAL OPENING SOLVER
-                                                     (*
+                                                     //(*
                                                      | _ ->
                                                         
                                                         let tSigs = [List.head tSigs]
@@ -300,7 +308,7 @@ module BestFirst =
                                                             ConductorTurn (s1+s2)
                                                         else 
                                                             ConductorTurn s1
-                                                     *)
+                                                     //*)
                                                      // END OF SINGLE SIGNAL OPENING SOLVER
                                                      // ###################################
                                                       
@@ -329,10 +337,10 @@ module BestFirst =
         // Used to time the postprocessing
         let stopWatchPost = System.Diagnostics.Stopwatch.StartNew()
         // Line below used multiagent postprocess for opening entire paths solver
-        let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionEntirePath r
+        //let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionEntirePath r
 
         // Line below used multiagent postprocess for opening single signal solver
-        //let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionSingleStep r Trains
+        let postresult = if Set.contains 0 (valueSet Priorities) then r else CombineSolutionSingleSignal r Trains
 
         stopWatchPost.Stop()
         let posttime = stopWatchPost.Elapsed.TotalMilliseconds

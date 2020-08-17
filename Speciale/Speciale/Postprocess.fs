@@ -5,6 +5,10 @@ open Railways.Preprocess
 
 module Postprocess =
 
+    // ####################################
+    // HELPER FUNCTIONS FOR POST-PROCESSING
+    // ####################################
+
     // Gets the location of a given train in a given state
     let GetTrainLocation s t =
         match s with
@@ -65,6 +69,17 @@ module Postprocess =
                               let ns = ChangeSignalMap x nsm
                               TurnOffSignals xs (ns::nsl) cls
 
+    // Updates a state by changing the signal map, train map and switchrail map
+    let UpdateState s sm tm rm = 
+        match s with
+        | S(h,_,_,_,p) -> S(h,sm,tm,rm,p)
+        | N -> N
+
+
+    // ####################################
+    // POST-PROCESS FOR ENTIRE PATH VERSION 
+    // ####################################
+
     // Splits the state list into list of order of trains moving
     let rec SplitStateList sl nsl ssl rsl = 
         match sl with
@@ -109,13 +124,6 @@ module Postprocess =
                    | true -> FindSplitState xs locs ts (x::rsl)
                    | false -> sl,rsl
 
-    // Updates a state by changing the signal map, train map and switchrail map
-    let UpdateState s sm tm rm = 
-        match s with
-        | S(h,_,_,_,p) -> S(h,sm,tm,rm,p)
-        | N -> N
-
-
     // Merges two state list together by merging the signal, train and switchrail maps at given locations
     let rec Merge sl msl rsl locs =
         match sl with
@@ -137,7 +145,8 @@ module Postprocess =
 
                    let nsm = Map.fold (fun s k v -> if Set.contains (fst k) locs then Map.add k v s else s) sm (GetSignalMap ms)
                    let ntm = Map.fold (fun s k v -> if Set.contains v locs then Map.add k v s else s) tm (GetTrainMap ms)
-                   let nrm = Map.fold (fun s (l1,l2,l3,d) v -> if (Set.contains l1 locs || Set.contains l2 locs || Set.contains l3 locs) then Map.add (l1,l2,l3,d) v s else s) rm (GetSwitchRailMap ms) 
+                   let nrm = Map.fold (fun s (l1,l2,l3,d) v -> let b = Set.contains l1 locs || Set.contains l2 locs || Set.contains l3 locs
+                                                               if b then Map.add (l1,l2,l3,d) v s else s) rm (GetSwitchRailMap ms) 
 
                    let ns = UpdateState x nsm ntm nrm 
                    Merge xs (List.tail msl) (ns::rsl) locs
@@ -182,10 +191,18 @@ module Postprocess =
         let rr = (List.rev r)
         MergeStates slr rr
 
+        
+    // ######################################
+    // POST-PROCESS FOR SINGLE SIGNAL VERSION 
+    // ######################################
+
+
+
     // Check if any signal is on is a signalmap
     let SignalIsOn sm = 
         Set.exists (fun v -> v) (valueSet sm)
 
+    // Checks if any new signals has been turned green between two signal maps
     let NewSignalOn smx smy =
         Map.fold (fun s k v -> let b = Map.find k smy
                                if b && b<>v then true else s) false smx
@@ -217,14 +234,15 @@ module Postprocess =
 
 
     // Splits a state list into states list containing set of trains moving
-    let rec SplitStateListSingleStep sl asl tdl = 
+    let rec SplitStateListSingleSignal sl asl tdl = 
         match sl with
         | [] -> List.rev asl
         | x::y::xs -> let ts = GetMovingTrains (x::[y]) Set.empty
                       let nsl,rsl = GetMovingTrainsStates ts (y::xs) [x] tdl
-                      SplitStateListSingleStep nsl ((List.rev rsl)::asl) tdl
-        | _ -> failwith "F"
+                      SplitStateListSingleSignal nsl ((List.rev rsl)::asl) tdl
+        | _ -> failwith "Failed in SplitStateListSingleSignal input list length wrong"
 
+    // Find the locations being used in state list
     let rec GetNextLocations sl ts tdl locs rsl = 
         match sl with
         | [] -> locs,List.rev rsl
@@ -241,7 +259,8 @@ module Postprocess =
                    | true -> GetNextLocations xs ts tdl (locs+ls) (x::rsl)
                    | false -> locs + ls,List.rev (x::rsl)
 
-    let rec FindSplitStateSingleStep sl locs ts rsl = 
+    // Find splitpoint in list where the states can merge
+    let rec FindSplitStateSingleSignal sl locs ts rsl = 
         match sl with
         | [] -> sl,rsl
         | x::xs -> let tm = GetTrainMap x
@@ -253,7 +272,7 @@ module Postprocess =
                               let sm = GetSignalMap x
                               let rm = GetSwitchRailMap x
                               let ns = UpdateState x sm ntm rm
-                              FindSplitStateSingleStep xs locs ts (ns::rsl)
+                              FindSplitStateSingleSignal xs locs ts (ns::rsl)
                    | true -> let b = List.forall (fun v -> let tm = GetTrainMap v
                                                            let ls = Set.fold (fun s v -> Set.add (Map.find v tm) s) Set.empty ts
                                                            Set.isEmpty (Set.intersect ls locs)) xs
@@ -264,10 +283,11 @@ module Postprocess =
                                         let sm = GetSignalMap x
                                         let rm = GetSwitchRailMap x
                                         let ns = UpdateState x sm ntm rm
-                                        FindSplitStateSingleStep xs locs ts (ns::rsl)
+                                        FindSplitStateSingleSignal xs locs ts (ns::rsl)
                              | true -> sl, rsl
 
-    let rec MergeSingleStep sl msl rsl ts = 
+    // Merges two state list together by merging the signal, train and switchrail maps at given locations
+    let rec MergeSingleSignal sl msl rsl ts = 
         match sl with
         | [] -> [],List.fold (fun s v -> v::s) rsl msl
         | x::xs -> match msl with
@@ -286,8 +306,9 @@ module Postprocess =
                               let nrm = Map.fold (fun s (l1,l2,l3,d) v -> if (Set.contains l1 locs || Set.contains l2 locs || Set.contains l3 locs) then Map.add (l1,l2,l3,d) v s else s) rmx rmy 
 
                               let ns = UpdateState x nsm ntm nrm 
-                              MergeSingleStep xs (List.tail msl) (ns::rsl) ts
+                              MergeSingleSignal xs (List.tail msl) (ns::rsl) ts
 
+    // Finds where in state list given trains are not moving
     let rec StatesWithoutTrains sl ts =
         match sl with
         | [] -> []
@@ -295,8 +316,9 @@ module Postprocess =
                    match Set.isEmpty (Set.intersect ts mts) with
                    | true -> sl
                    | false -> StatesWithoutTrains xs ts 
-
-    let rec MergingSingleStep l r tdl = 
+    
+    // Merges the second element (list) of the list into the first, updates the second element and recurse over the tail of the list
+    let rec MergingSingleSignal l r tdl = 
         match l with
         | [] -> r
         | x::[] -> x@r
@@ -312,24 +334,20 @@ module Postprocess =
                         match ts = allTs with
                         | true -> let nx = List.tail sl
                                   let nr = (List.head sl::r)
-                                  MergingSingleStep (nx::y::rest) nr tdl
+                                  MergingSingleSignal (nx::y::rest) nr tdl
                         | false ->  // Get the trains moving in msl
                                     let mts = GetMovingTrains msl Set.empty
-                                    let a = if Set.contains "T0" mts
-                                            then
-                                                0
-                                            else 
-                                                1
+
                                     // Get the locations that are used for the next train ride in msl, and the states it is moving in
                                     let locs,ms = GetNextLocations msl mts tdl Set.empty []
 
                                     let ats = List.fold (fun s (v,_) -> if Set.contains v mts then s else Set.add v s) Set.empty tdl
-                                    // Find the place to merge into sl TODO : Look at function
-                                    let sl1, rsl = FindSplitStateSingleStep sl locs (ats) r
+                                    // Find the place to merge into sl
+                                    let sl1, rsl = FindSplitStateSingleSignal sl locs (ats) r
                                     // Put the non-mergeable states in the result list
                                     let r = rsl
-                                    // Merge ms into sl, nsl = part of sl that has not been merged into rsl1 the merge lists
-                                    let nsl,rsl1 = MergeSingleStep sl1 ms r mts
+                                    // Merge ms into sl, nsl = part of sl that has not yet been merged into
+                                    let nsl,rsl1 = MergeSingleSignal sl1 ms r mts
                                     // Get the part of the list msl that is not yet merged
                                     let nmsl = List.rev (List.take (List.length y - List.length ms) (List.rev y))
                                     match nsl,nmsl with
@@ -337,35 +355,35 @@ module Postprocess =
                                                | [] -> rsl1
                                                | z::zs -> let ny = StatesWithoutTrains (List.rev rsl1) (GetMovingTrains z Set.empty)
                                                           let nrsl = List.rev (List.take (List.length rsl1 - List.length ny) (List.rev rsl1))
-                                                          MergingSingleStep (ny::z::zs) nrsl tdl
+                                                          MergingSingleSignal (ny::z::zs) nrsl tdl
 
                                     | [],_ -> let nrsl = List.fold (fun s v -> v::s) rsl1 nmsl 
                                               match rest with
                                               | [] -> nrsl
                                               | z::zs -> let ny = StatesWithoutTrains (List.rev nrsl) (GetMovingTrains z Set.empty)
                                                          let nrsl = List.rev (List.take (List.length nrsl - List.length ny) (List.rev nrsl))
-                                                         MergingSingleStep (ny::z::zs) nrsl tdl
+                                                         MergingSingleSignal (ny::z::zs) nrsl tdl
                                     | _,[] -> let nmsl1 = List.init (List.length nsl) (fun v -> List.head rsl1)
                                               let nsl1 = nsl
-                                              let _,nrsl = MergeSingleStep nsl1 nmsl1 rsl1 mts
+                                              let _,nrsl = MergeSingleSignal nsl1 nmsl1 rsl1 mts
                                               match rest with
                                               | [] -> nrsl
                                               | z::zs -> let ny = StatesWithoutTrains (List.rev nrsl) (GetMovingTrains z Set.empty)
                                                          let nrsl = List.rev (List.take (List.length nrsl - List.length ny) (List.rev nrsl))
-                                                         MergingSingleStep (ny::z::zs) nrsl tdl 
-                                    | _,_ -> MergingSingleStep (nsl::nmsl::rest) rsl1 tdl
+                                                         MergingSingleSignal (ny::z::zs) nrsl tdl 
+                                    | _,_ -> MergingSingleSignal (nsl::nmsl::rest) rsl1 tdl
                                 
 
-
-    let MergeStatesSingleStep sl tdl =
-        let x = SplitStateListSingleStep sl [] tdl
-        let y = MergingSingleStep x [] tdl
+    // Find the point at which the solution can be split then merges the lists together
+    let MergeStatesSingleSignal sl tdl =
+        let x = SplitStateListSingleSignal sl [] tdl
+        let y = MergingSingleSignal x [] tdl
         y
 
-
-    let CombineSolutionSingleStep sl tdl =
+    // Postprocess function for solution found using the single signal turn on function
+    let CombineSolutionSingleSignal sl tdl =
         let slr = List.rev sl
         let r = TurnOffSignals slr [] Set.empty
         let rr = List.rev r
-        let r = MergeStatesSingleStep rr tdl 
+        let r = MergeStatesSingleSignal rr tdl 
         r
