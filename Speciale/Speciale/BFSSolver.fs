@@ -132,7 +132,7 @@ module BestFirst =
                                       let g = Map.find t Goal
                                       if l = g then s else
 
-                                      s + ((Map.find t Priorities) * (Map.find (l,g) DistanceMap))
+                                      s +  (Map.find (l,g) DistanceMap)
                                       ) 0 Trains
 
                                       

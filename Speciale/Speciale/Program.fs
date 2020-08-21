@@ -10,19 +10,11 @@ open System.IO
 [<EntryPoint>]
 let main args =
     printfn "Arguments passed to function : %A" args
-
-    // Paste into terminal to compile to excutable and run
-    // cd Documents/Speciale/Speciale/Speciale/Speciale
-    // fsharpc Types.fs Preprocessing.fs LoadFile.fs SaveFile.fs PriorityQueue.fs Postprocess.fs BFSSolver.fs Program.fs
-    // mono Program.exe filename directory
-    // directory : /Users/matias/Documents/Eclipse/SpecialeGUI
-    //             /Users/matias/Documents/Speciale/Speciale/Speciale/Speciale
-
-    //TODO : Check if files exists
+    
     let filename = match Array.tryHead args with
                    | Some(n) -> n
                    | None -> Console.WriteLine (sprintf "No filename entered")
-                             "LyngbyGUI"
+                             "SWAP"
 
     let path = match Array.tryItem 1 args with
                    | Some(n) -> n
